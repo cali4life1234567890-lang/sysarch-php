@@ -1,0 +1,61 @@
+<?php
+// Admin Reservations Page
+require_once '../db.php';
+startSession();
+
+// Check if admin
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['token'])) {
+    header('Location: ../index.php');
+    exit;
+}
+
+$stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ? AND id_number = '2664388'");
+$stmt->execute([$_SESSION['user_id']]);
+if (!$stmt->fetch()) {
+    header('Location: ../index.php');
+    exit;
+}
+
+$adminName = $_SESSION['name'] ?? 'Admin';
+?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservations - CCS Sit-In System</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <nav class="navbar admin-navbar">
+        <div class="nav-brand"> 
+            <a href="admin_home.php" class="logo-group"> 
+                <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
+                <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
+                <h1 class="system-title">CCS Sit-In Monitoring System</h1>
+            </a>
+        </div>
+        <div class="nav-links admin-links">
+            <a href="admin_home.php">Home</a>
+            <a href="admin_search.php">Search</a>
+            <a href="admin_students.php">Students</a>
+            <a href="admin_sitin.php">Sit-In</a>
+            <a href="admin_records.php">View Sit-In Records</a>
+            <a href="admin_reports.php">Sit-In Reports</a>
+            <a href="admin_feedback.php">Feedback</a>
+            <a href="admin_reservations.php" class="active">Reservations</a>
+            <a href="../logout.php">Logout (<?php echo htmlspecialchars($adminName); ?>)</a>
+        </div>
+    </nav>
+
+    <div class="admin-content">
+        <h1>Reservations</h1>
+        
+        <div class="empty-state">
+            <p>No reservations yet.</p>
+            <p class="sub-text">Reservation functionality will be available once students start using the system.</p>
+        </div>
+    </div>
+</body>
+</html>
