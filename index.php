@@ -298,8 +298,8 @@ $userJson = json_encode($currentUser);
           </div>
           <a href="#" onclick="showSection('user-home')" id="nav-home">Home</a>
           <a href="#" onclick="showSection('user-profile')" id="nav-profile">Edit Profile</a>
-          <a href="#" onclick="showSection('user-history')" id="nav-history">History</a>
-          <a href="#" onclick="showSection('user-reservation')" id="nav-reservation">Reservation</a>
+          <a href="user_history.php" id="nav-history">History</a>
+          <a href="user_reservation.php" id="nav-reservation">Reservation</a>
           <a href="#" onclick="logout()">Logout</a>
         <?php else: ?>
           <!-- Guest Navigation -->
@@ -507,81 +507,7 @@ $userJson = json_encode($currentUser);
     </div>
     <?php endif; ?>
 
-    <!-- User History -->
-    <?php if ($currentUser && !$isAdmin): ?>
-    <div id="user-history" class="content-section user-section" style="display: none">
-      <h1>My Sit-In History</h1>
-      <div class="records-filters">
-        <select id="history-filter" class="auth-input" onchange="loadUserHistory()">
-          <option value="all">All Records</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="ongoing">Ongoing</option>
-        </select>
-        <button class="btn-primary" onclick="loadUserHistory()">Filter</button>
-      </div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Lab</th>
-            <th>Time In</th>
-            <th>Time Out</th>
-            <th>Duration</th>
-            <th>Purpose</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="history-table-body">
-          <!-- History will be loaded here -->
-        </tbody>
-      </table>
-    </div>
-    <?php endif; ?>
 
-    <!-- User Reservations -->
-    <?php if ($currentUser && !$isAdmin): ?>
-    <div id="user-reservation" class="content-section user-section" style="display: none">
-      <h1>My Reservations</h1>
-      
-      <div class="reservation-form-card">
-        <h2>Make a Reservation</h2>
-        <div class="reservation-form">
-          <select id="reservation-lab" class="auth-input">
-            <option value="">Select Lab</option>
-            <option value="Lab 1">Lab 1</option>
-            <option value="Lab 2">Lab 2</option>
-            <option value="Lab 3">Lab 3</option>
-            <option value="Lab 4">Lab 4</option>
-            <option value="Lab 5">Lab 5</option>
-          </select>
-          <input type="date" id="reservation-date" class="auth-input" />
-          <input type="time" id="reservation-start" class="auth-input" placeholder="Start Time" />
-          <input type="time" id="reservation-end" class="auth-input" placeholder="End Time" />
-          <input type="text" id="reservation-purpose" placeholder="Purpose" />
-          <button class="btn-primary" onclick="makeReservation()">Submit Reservation</button>
-        </div>
-      </div>
-
-      <h2>My Reservation History</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Lab</th>
-            <th>Date</th>
-            <th>Start Time</th>
-            <th>End Time</th>
-            <th>Purpose</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="reservations-table-body">
-          <!-- Reservations will be loaded here -->
-        </tbody>
-      </table>
-    </div>
-    <?php endif; ?>
 
     <!-- Regular User Sections -->
     <?php if (!$isAdmin): ?>
@@ -1387,10 +1313,6 @@ $userJson = json_encode($currentUser);
         // Load data based on section
         if (sectionId === 'user-home') {
           loadUserDashboard();
-        } else if (sectionId === 'user-history') {
-          loadUserHistory();
-        } else if (sectionId === 'user-reservation') {
-          loadUserReservations();
         } else if (sectionId === 'user-profile') {
           // Profile is already loaded from PHP
         }

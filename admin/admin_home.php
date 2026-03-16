@@ -66,7 +66,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             <a href="admin_reports.php">Sit-In Reports</a>
             <a href="admin_feedback.php">Feedback</a>
             <a href="admin_reservations.php">Reservations</a>
-            <a href="../logout.php">Logout (<?php echo htmlspecialchars($adminName); ?>)</a>
+            <a href="../logout.php">Logout</a>
         </div>
     </nav>
 

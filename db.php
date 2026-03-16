@@ -50,6 +50,16 @@ try {
         )
     ");
     
+    // Create user_sessions table for tracking remaining sit-in sessions
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
+            remaining_sessions INTEGER DEFAULT 30,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ");
+    
     // Create admin account if not exists
     $adminCheck = $pdo->query("SELECT id FROM users WHERE id_number = '2664388'");
     if (!$adminCheck->fetch()) {

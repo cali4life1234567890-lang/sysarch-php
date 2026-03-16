@@ -55,6 +55,9 @@ switch ($action) {
     case 'end_sitin':
         endSitIn();
         break;
+    case 'remaining_sessions':
+        getRemainingSessions();
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -236,11 +239,32 @@ function startSitIn() {
         return;
     }
     
+    // Check remaining sessions
+    $sessionStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+    $sessionStmt->execute([$_SESSION['user_id']]);
+    $sessionResult = $sessionStmt->fetch();
+    
+    $remainingSessions = $sessionResult ? $sessionResult['remaining_sessions'] : 30;
+    
+    if ($remainingSessions <= 0) {
+        echo json_encode(['success' => false, 'message' => 'No remaining sessions available']);
+        return;
+    }
+    
     try {
         $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, purpose) VALUES (?, ?, ?)");
         $insertStmt->execute([$_SESSION['user_id'], $lab, $purpose]);
         
-        echo json_encode(['success' => true, 'message' => 'Sit-In started successfully']);
+        // Decrement remaining sessions
+        if ($sessionResult) {
+            $updateStmt = $pdo->prepare("UPDATE user_sessions SET remaining_sessions = remaining_sessions - 1 WHERE user_id = ?");
+            $updateStmt->execute([$_SESSION['user_id']]);
+        } else {
+            $insertSessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 29)");
+            $insertSessionStmt->execute([$_SESSION['user_id']]);
+        }
+        
+        echo json_encode(['success' => true, 'message' => 'Sit-In started successfully', 'remaining_sessions' => $remainingSessions - 1]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
@@ -257,6 +281,37 @@ function endSitIn() {
             echo json_encode(['success' => true, 'message' => 'Sit-In ended successfully']);
         } else {
             echo json_encode(['success' => false, 'message' => 'No ongoing sit-in found']);
+        }
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getRemainingSessions() {
+    global $pdo;
+    
+    // Create user_sessions table if not exists
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
+            remaining_sessions INTEGER DEFAULT 30,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ");
+    
+    try {
+        $stmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $result = $stmt->fetch();
+        
+        if ($result) {
+            echo json_encode(['success' => true, 'remaining_sessions' => $result['remaining_sessions']]);
+        } else {
+            // Create new user session with 30 sessions
+            $insertStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 30)");
+            $insertStmt->execute([$_SESSION['user_id']]);
+            echo json_encode(['success' => true, 'remaining_sessions' => 30]);
         }
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);

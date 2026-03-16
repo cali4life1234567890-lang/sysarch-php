@@ -16,7 +16,7 @@ function showSection(sectionId) {
     });
     
     // Hide all user sections
-    const userSections = ['user-home', 'user-profile', 'user-history', 'user-reservation'];
+    const userSections = ['user-home', 'user-profile'];
     userSections.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
@@ -63,7 +63,7 @@ function showPage(page) {
     });
     
     // Hide all user sections
-    const userSections = ['user-home', 'user-profile', 'user-history', 'user-reservation'];
+    const userSections = ['user-home', 'user-profile'];
     userSections.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
