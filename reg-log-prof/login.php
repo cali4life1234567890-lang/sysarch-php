@@ -2,7 +2,7 @@
 // Login handler
 header('Content-Type: application/json');
 
-require_once 'db.php';
+require_once '../database/db.php';
 startSession();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -1,18 +1,77 @@
+<?php
+// Home page entry point
+// This serves as the landing page for the CCS Sit-In Monitoring System
+
+// Start session and check for logged in user
+require_once __DIR__ . '/../database/db.php';
+startSession();
+
+// Check if user is already logged in via session
+$currentUser = null;
+$isAdmin = false;
+if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
+    // Verify token exists in database
+    $stmt = $pdo->prepare("SELECT session_token FROM sessions WHERE user_id = ? AND session_token = ? AND expires_at > datetime('now')");
+    $stmt->execute([$_SESSION['user_id'], $_SESSION['token']]);
+    if ($stmt->fetch()) {
+        // Get user data with remaining sessions
+        $userStmt = $pdo->prepare("SELECT u.id_number, u.lastname, u.firstname, u.middlename, u.course, u.level, u.email, u.address, COALESCE(us.remaining_sessions, 30) as remaining_sessions FROM users u LEFT JOIN user_sessions us ON u.id = us.user_id WHERE u.id = ?");
+        $userStmt->execute([$_SESSION['user_id']]);
+        $user = $userStmt->fetch();
+        if ($user) {
+            $isAdmin = ($user['id_number'] === '2664388');
+            $fullName = $user['firstname'];
+            if (!empty($user['middlename'])) {
+                $fullName .= ' ' . $user['middlename'];
+            }
+            $fullName .= ' ' . $user['lastname'];
+            $currentUser = [
+                'id_number' => $user['id_number'],
+                'name' => $fullName,
+                'firstname' => $user['firstname'],
+                'middlename' => $user['middlename'],
+                'lastname' => $user['lastname'],
+                'course' => $user['course'],
+                'level' => $user['level'],
+                'email' => $user['email'],
+                'address' => $user['address'],
+                'sessions_left' => $user['remaining_sessions'],
+                'is_admin' => $isAdmin
+            ];
+        }
+    }
+}
+
+// Redirect admin to admin dashboard
+if ($isAdmin) {
+    header('Location: ../admin/admin_home.php');
+    exit;
+}
+
+// Redirect logged-in users to main index
+if ($currentUser && !$isAdmin) {
+    header('Location: ../index.php');
+    exit;
+}
+
+// Pass user data to JavaScript
+$userJson = json_encode($currentUser);
+?>
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>University of Cebu - Home</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="script.js"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../script.js"></script>
   </head>
   <body>
     <nav class="navbar">
       <div class="nav-brand"> 
-        <a href="home/" class="logo-group"> 
-          <img src="/imgs/uclogo.png" alt="University Logo" class="logo-main" />
-          <img src="/imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
+        <a href="./" class="logo-group"> 
+          <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
+          <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             College of Computer Studies Sit-In Monitoring System
           </h1>
@@ -104,7 +163,7 @@
         <div class="profile-layout">
           <div class="profile-left">
             <img
-              src="/imgs/temu_opera.png"
+              src="../imgs/temu_opera.png"
               alt="Profile Picture"
               class="profile-pic"
             />
@@ -127,6 +186,10 @@
               <span class="value" id="prof-email"></span>
             </div>
             <div class="info-row">
+              <span class="label">SESSIONS LEFT:</span>
+              <span class="value" id="prof-sessions-left"></span>
+            </div>
+            <div class="info-row">
               <span class="label">ADDRESS:</span>
               <span class="value" id="prof-address"></span>
             </div>
@@ -141,19 +204,14 @@
         </div>
       </div>
     </div>
-    <div id="home" class="content-section">
-      <h1>Welcome to Our Home Page</h1>
-      <p>This is the main landing area.</p>
-    </div>
+    
+    <?php require_once 'home.php'; ?>
 
-    <div id="about" class="content-section" style="display: none">
-      <h1>About Us</h1>
-      <p>Learn more about our mission and team.</p>
-    </div>
-
-    <div id="community" class="content-section" style="display: none">
-      <h1>Community</h1>
-      <p>Join the conversation with our members.</p>
-    </div>
+    <script>
+      // Initialize UI for guest user
+      document.addEventListener('DOMContentLoaded', function() {
+        updateUIForGuestUser();
+      });
+    </script>
   </body>
 </html>

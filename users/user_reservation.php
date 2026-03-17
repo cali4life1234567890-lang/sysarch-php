@@ -1,6 +1,6 @@
 <?php
 // User Reservation Page
-require_once 'db.php';
+require_once '../database/db.php';
 startSession();
 
 // Check if user is logged in
@@ -73,8 +73,8 @@ $userJson = json_encode($currentUser);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Reservations - CCS Sit-In Monitoring System</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="script.js"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../script.js"></script>
     <script>
       const phpUser = <?php echo $userJson; ?>;
       if (phpUser) {
@@ -182,9 +182,9 @@ $userJson = json_encode($currentUser);
     <!-- User Navigation -->
     <nav class="navbar user-navbar">
       <div class="nav-brand"> 
-        <a href="index.php" class="logo-group"> 
-          <img src="imgs/uclogo.png" alt="University Logo" class="logo-main" />
-          <img src="imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
+        <a href="../index.php" class="logo-group"> 
+          <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
+          <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             CCS Sit-In Monitoring System
           </h1>
@@ -202,11 +202,11 @@ $userJson = json_encode($currentUser);
             </div>
           </div>
         </div>
-        <a href="index.php" id="nav-home">Home</a>
-        <a href="index.php" onclick="showSection('user-profile')" id="nav-profile">Edit Profile</a>
+        <a href="../index.php" id="nav-home">Home</a>
+        <a href="../index.php?section=user-profile" onclick="showSection('user-profile'); return false;" id="nav-profile">Edit Profile</a>
         <a href="user_history.php" id="nav-history">History</a>
         <a href="user_reservation.php" id="nav-reservation">Reservation</a>
-        <a href="logout.php">Logout</a>
+        <a href="../reg-log-prof/logout.php">Logout</a>
       </div>
     </nav>
 
@@ -269,26 +269,6 @@ $userJson = json_encode($currentUser);
           </div>
           <button type="submit" class="btn-primary">Reserve</button>
         </form>
-      </div>
-
-      <!-- Current Reservations -->
-      <div class="form-section">
-        <h2>My Reservations</h2>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Lab</th>
-              <th>Date</th>
-              <th>Time In</th>
-              <th>Purpose</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reservations-table-body">
-            <!-- Reservations will be loaded here -->
-          </tbody>
-        </table>
       </div>
     </div>
 

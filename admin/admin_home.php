@@ -1,6 +1,6 @@
 <?php
 // Admin Home/Dashboard Page
-require_once '../db.php';
+require_once '../database/db.php';
 startSession();
 
 // Check if admin
@@ -59,14 +59,14 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         </div>
         <div class="nav-links admin-links">
             <a href="admin_home.php" class="active">Home</a>
-            <a href="admin_search.php">Search</a>
+            <a href="#" onclick="openSearchModal(); return false;">Search</a>
             <a href="admin_students.php">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
             <a href="admin_records.php">View Sit-In Records</a>
             <a href="admin_reports.php">Sit-In Reports</a>
             <a href="admin_feedback.php">Feedback</a>
             <a href="admin_reservations.php">Reservations</a>
-            <a href="../logout.php">Logout</a>
+            <a href="../reg-log-prof/logout.php">Logout</a>
         </div>
     </nav>
 
@@ -190,5 +190,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         alert('Announcement posted successfully!');
     }
     </script>
+    
+    <?php require_once 'search_modal.php'; ?>
 </body>
 </html>

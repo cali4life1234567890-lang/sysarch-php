@@ -2,7 +2,7 @@
 // User Dashboard Handler
 header('Content-Type: application/json');
 
-require_once 'db.php';
+require_once '../database/db.php';
 startSession();
 
 // Check if user is logged in

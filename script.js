@@ -6,6 +6,7 @@ let currentUser = null;
 
 // Show a specific section (home, about, community, user-*, admin-*)
 function showSection(sectionId) {
+    console.log('[Navigation] showSection called with:', sectionId);
     // Hide all sections - regular user sections
     const regularSections = ['home', 'about', 'community'];
     regularSections.forEach(id => {
@@ -114,7 +115,7 @@ async function validateLogin() {
     }
     
     try {
-        const response = await fetch('login.php', {
+        const response = await fetch('reg-log-prof/login.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -198,7 +199,7 @@ async function validateRegister() {
     }
     
     try {
-        const response = await fetch('register.php', {
+        const response = await fetch('reg-log-prof/register.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -304,12 +305,18 @@ function populateProfileData() {
     document.getElementById('prof-course-level').textContent = currentUser.course + ' - Level ' + currentUser.level;
     document.getElementById('prof-email').textContent = currentUser.email;
     document.getElementById('prof-address').textContent = currentUser.address || 'N/A';
+    
+    // Populate sessions left if element exists
+    const sessionsLeftEl = document.getElementById('prof-sessions-left');
+    if (sessionsLeftEl && currentUser.sessions_left !== undefined) {
+        sessionsLeftEl.textContent = currentUser.sessions_left;
+    }
 }
 
 // Logout function
 async function logout() {
     try {
-        const response = await fetch('logout.php', {
+        const response = await fetch('/reg-log-prof/logout.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -338,7 +345,7 @@ async function deleteAccount() {
     
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
         try {
-            const response = await fetch('delete_account.php', {
+            const response = await fetch('database/delete_account.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

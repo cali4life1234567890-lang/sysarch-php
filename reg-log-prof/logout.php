@@ -1,6 +1,6 @@
 <?php
 // Logout handler
-require_once 'db.php';
+require_once '../database/db.php';
 startSession();
 
 // Handle GET requests (direct links from admin pages)
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     session_destroy();
     
     // Redirect to index
-    header('Location: index.php');
+    header('Location: ../index.php');
     exit;
 }
 

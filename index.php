@@ -1,6 +1,6 @@
 <?php
 // Start session and check for logged in user
-require_once 'db.php';
+require_once 'database/db.php';
 startSession();
 
 // Check if user is already logged in via session
@@ -11,8 +11,8 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
     $stmt = $pdo->prepare("SELECT session_token FROM sessions WHERE user_id = ? AND session_token = ? AND expires_at > datetime('now')");
     $stmt->execute([$_SESSION['user_id'], $_SESSION['token']]);
     if ($stmt->fetch()) {
-        // Get user data
-        $userStmt = $pdo->prepare("SELECT id_number, lastname, firstname, middlename, course, level, email, address FROM users WHERE id = ?");
+        // Get user data with remaining sessions
+        $userStmt = $pdo->prepare("SELECT u.id_number, u.lastname, u.firstname, u.middlename, u.course, u.level, u.email, u.address, COALESCE(us.remaining_sessions, 30) as remaining_sessions FROM users u LEFT JOIN user_sessions us ON u.id = us.user_id WHERE u.id = ?");
         $userStmt->execute([$_SESSION['user_id']]);
         $user = $userStmt->fetch();
         if ($user) {
@@ -32,6 +32,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
                 'level' => $user['level'],
                 'email' => $user['email'],
                 'address' => $user['address'],
+                'sessions_left' => $user['remaining_sessions'],
                 'is_admin' => $isAdmin
             ];
         }
@@ -298,8 +299,8 @@ $userJson = json_encode($currentUser);
           </div>
           <a href="#" onclick="showSection('user-home')" id="nav-home">Home</a>
           <a href="#" onclick="showSection('user-profile')" id="nav-profile">Edit Profile</a>
-          <a href="user_history.php" id="nav-history">History</a>
-          <a href="user_reservation.php" id="nav-reservation">Reservation</a>
+          <a href="users/user_history.php" id="nav-history">History</a>
+          <a href="users/user_reservation.php" id="nav-reservation">Reservation</a>
           <a href="#" onclick="logout()">Logout</a>
         <?php else: ?>
           <!-- Guest Navigation -->
@@ -422,6 +423,10 @@ $userJson = json_encode($currentUser);
               <input type="email" id="prof-email" class="profile-input" value="<?php echo htmlspecialchars($currentUser['email']); ?>" />
             </div>
             <div class="info-row">
+              <span class="label">SESSIONS LEFT:</span>
+              <span class="value"><?php echo htmlspecialchars($currentUser['sessions_left']); ?></span>
+            </div>
+            <div class="info-row">
               <span class="label">ADDRESS:</span>
               <input type="text" id="prof-address" class="profile-input" value="<?php echo htmlspecialchars($currentUser['address'] ?? ''); ?>" />
             </div>
@@ -450,23 +455,23 @@ $userJson = json_encode($currentUser);
               <div class="student-info-details">
                 <div class="info-item">
                   <span class="label">ID Number:</span>
-                  <span class="value"><?php echo htmlspecialchars($currentUser['id_number']); ?></span>
+                  <span class="value" id="home-id-number"><?php echo htmlspecialchars($currentUser['id_number']); ?></span>
                 </div>
                 <div class="info-item">
                   <span class="label">Name:</span>
-                  <span class="value"><?php echo htmlspecialchars($currentUser['name']); ?></span>
+                  <span class="value" id="home-student-name"><?php echo htmlspecialchars($currentUser['name']); ?></span>
                 </div>
                 <div class="info-item">
                   <span class="label">Course:</span>
-                  <span class="value"><?php echo htmlspecialchars($currentUser['course']); ?></span>
+                  <span class="value" id="home-student-course"><?php echo htmlspecialchars($currentUser['course']); ?></span>
                 </div>
                 <div class="info-item">
                   <span class="label">Level:</span>
-                  <span class="value"><?php echo htmlspecialchars($currentUser['level']); ?></span>
+                  <span class="value" id="home-student-level"><?php echo htmlspecialchars($currentUser['level']); ?></span>
                 </div>
                 <div class="info-item">
                   <span class="label">Email:</span>
-                  <span class="value"><?php echo htmlspecialchars($currentUser['email']); ?></span>
+                  <span class="value" id="home-student-email"><?php echo htmlspecialchars($currentUser['email']); ?></span>
                 </div>
               </div>
             </div>
@@ -511,28 +516,84 @@ $userJson = json_encode($currentUser);
 
     <!-- Regular User Sections -->
     <?php if (!$isAdmin): ?>
-    <div id="home" class="content-section" style="display: none">
+    <div id="home" class="content-section">
+      <div class="home-hero">
+        <h1>Welcome to CCS Sit-In Monitoring System</h1>
+        <p class="home-tagline">University of Cebu - College of Computer Studies</p>
+        <div class="home-cta">
+          <p>Track your laboratory sessions efficiently</p>
+        </div>
+      </div>
+      
+      <div class="home-features">
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3>Easy Check-In</h3>
+          <p>Simply log in and check in to any laboratory room</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">⏱️</div>
+          <h3>Track Time</h3>
+          <p>Monitor your sit-in sessions and remaining balance</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>View History</h3>
+          <p>Access your complete sit-in history anytime</p>
+        </div>
+      </div>
     </div>
 
     <div id="about" class="content-section" style="display: none">
       <h1>About Us</h1>
-      <p>Learn more about our mission and team.</p>
+      <div class="about-content">
+        <div class="about-card">
+          <h2>College of Computer Studies</h2>
+          <p>The CCS Sit-In Monitoring System is designed to help students and faculty manage laboratory sessions effectively.</p>
+        </div>
+      </div>
     </div>
 
     <div id="community" class="content-section" style="display: none">
       <h1>Community</h1>
-      <p>Join the conversation with our members.</p>
+      <div class="community-content">
+        <div class="community-card">
+          <h2>Student Guidelines</h2>
+          <ul>
+            <li>Always bring your ID card when entering the laboratory</li>
+            <li>Sign in before using any computer</li>
+            <li>Sign out when leaving the laboratory</li>
+            <li>Handle equipment with care</li>
+            <li>No eating or drinking inside the lab</li>
+            <li>No installation of unauthorized software</li>
+            <li>Respect others' work and privacy</li>
+          </ul>
+        </div>
+      </div>
     </div>
     <?php endif; ?>
     
     <script>
       // Initialize UI based on PHP session data
       document.addEventListener('DOMContentLoaded', function() {
-        <?php if ($currentUser): ?>
-          updateUIForLoggedInUser();
-        <?php else: ?>
-          updateUIForGuestUser();
-        <?php endif; ?>
+        // Check for section parameter in URL FIRST (before default UI initialization)
+        const urlParams = new URLSearchParams(window.location.search);
+        const sectionParam = urlParams.get('section');
+        
+        // If section parameter exists, show that section; otherwise use default
+        if (sectionParam) {
+          console.log('[Navigation] Showing section from URL:', sectionParam);
+          showSection(sectionParam);
+        } else {
+          // Default: show user home for logged in users
+          <?php if ($currentUser): ?>
+            updateUIForLoggedInUser();
+          <?php else: ?>
+            updateUIForGuestUser();
+          <?php endif; ?>
+        }
         
         // Admin specific initialization
         <?php if ($isAdmin): ?>
@@ -546,7 +607,7 @@ $userJson = json_encode($currentUser);
       // Admin functions
       function loadAdminDashboard() {
         // Load dashboard stats
-        fetch('admin_dashboard.php?action=stats')
+        fetch('admin/admin_dashboard.php?action=stats')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -629,7 +690,7 @@ $userJson = json_encode($currentUser);
 
       function adminSearch() {
         const query = document.getElementById('admin-search-input').value;
-        fetch('admin_dashboard.php?action=search&q=' + encodeURIComponent(query))
+        fetch('admin/admin_dashboard.php?action=search&q=' + encodeURIComponent(query))
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -667,7 +728,7 @@ $userJson = json_encode($currentUser);
           return;
         }
 
-        fetch('admin_dashboard.php?action=start_sitin', {
+        fetch('admin/admin_dashboard.php?action=start_sitin', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({student_id: studentId, lab: lab, purpose: purpose})
@@ -685,7 +746,7 @@ $userJson = json_encode($currentUser);
         const date = document.getElementById('record-date').value;
         const filter = document.getElementById('record-filter').value;
         
-        fetch(`admin_dashboard.php?action=records&date=${date}&filter=${filter}`)
+        fetch(`admin/admin_dashboard.php?action=records&date=${date}&filter=${filter}`)
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -758,7 +819,7 @@ $userJson = json_encode($currentUser);
 
       // Load notifications for navigation dropdown
       function loadNavNotifications() {
-        fetch('user_dashboard.php?action=notifications')
+        fetch('users/user_dashboard.php?action=notifications')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -817,7 +878,7 @@ $userJson = json_encode($currentUser);
 
       // Mark notification as read
       function markNotificationRead(notifId) {
-        fetch('user_dashboard.php?action=mark_notification_read&id=' + notifId)
+        fetch('users/user_dashboard.php?action=mark_notification_read&id=' + notifId)
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -837,7 +898,7 @@ $userJson = json_encode($currentUser);
 
       // Load notifications for home page (compact version)
       function loadNotificationsCompact() {
-        fetch('user_dashboard.php?action=notifications')
+        fetch('users/user_dashboard.php?action=notifications')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -945,7 +1006,7 @@ $userJson = json_encode($currentUser);
 
       // Load current sit-in status
       function loadCurrentSitIn() {
-        fetch('user_dashboard.php?action=current_sitin')
+        fetch('users/user_dashboard.php?action=current_sitin')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -969,7 +1030,7 @@ $userJson = json_encode($currentUser);
 
       // Load user statistics
       function loadUserStats() {
-        fetch('user_dashboard.php?action=history')
+        fetch('users/user_dashboard.php?action=history')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -977,7 +1038,7 @@ $userJson = json_encode($currentUser);
             }
           });
         
-        fetch('user_dashboard.php?action=reservations')
+        fetch('users/user_dashboard.php?action=reservations')
           .then(res => res.json())
           .then(data => {
             if (data.success) {
@@ -996,7 +1057,7 @@ $userJson = json_encode($currentUser);
           return;
         }
 
-        fetch('user_dashboard.php?action=start_sitin', {
+        fetch('users/user_dashboard.php?action=start_sitin', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({lab: lab, purpose: purpose})
@@ -1018,7 +1079,7 @@ $userJson = json_encode($currentUser);
           return;
         }
 
-        fetch('user_dashboard.php?action=end_sitin', {
+        fetch('users/user_dashboard.php?action=end_sitin', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'}
         })
@@ -1164,18 +1225,22 @@ $userJson = json_encode($currentUser);
 
       // Update profile
       function updateProfile() {
+        console.log('[Profile] updateProfile called');
         const lastname = document.getElementById('prof-lastname').value;
         const firstname = document.getElementById('prof-firstname').value;
         const middlename = document.getElementById('prof-middlename').value;
         const email = document.getElementById('prof-email').value;
         const address = document.getElementById('prof-address').value;
 
+        console.log('[Profile] Form values collected:', { lastname, firstname, middlename, email, address });
+
         if (!lastname || !firstname || !email) {
           alert('Last name, first name, and email are required');
           return;
         }
 
-        fetch('user_dashboard.php?action=update_profile', {
+        console.log('[Profile] Sending update request to users/user_dashboard.php');
+        fetch('users/user_dashboard.php?action=update_profile', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
@@ -1186,18 +1251,37 @@ $userJson = json_encode($currentUser);
             address: address
           })
         })
-        .then(res => res.json())
+        .then(res => {
+          console.log('[Profile] Response status:', res.status);
+          return res.json();
+        })
         .then(data => {
+          console.log('[Profile] Response data:', data);
           const msgBox = document.getElementById('profile-message');
           if (data.success) {
             msgBox.className = 'message-box success';
             msgBox.textContent = data.message;
-            // Update username in navbar
-            document.getElementById('display-username').textContent = firstname + ' ' + lastname + ' ▼';
+            
+            // Dynamically update student information on home page without reload
+            const fullName = firstname + ' ' + (middlename ? middlename + ' ' : '') + lastname;
+            
+            // Update navbar username
+            document.getElementById('display-username').textContent = fullName + ' ▼';
+            
+            // Update home page student info if visible
+            const homeName = document.getElementById('home-student-name');
+            const homeEmail = document.getElementById('home-student-email');
+            if (homeName) homeName.textContent = fullName;
+            if (homeEmail) homeEmail.textContent = email;
+            
+            console.log('[Profile] Student info updated dynamically');
           } else {
             msgBox.className = 'message-box error';
             msgBox.textContent = data.message;
           }
+        })
+        .catch(error => {
+          console.error('[Profile] Error during update:', error);
         });
       }
 

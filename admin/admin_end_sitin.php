@@ -1,6 +1,6 @@
 <?php
 // End Sit-In Handler
-require_once '../db.php';
+require_once '../database/db.php';
 startSession();
 
 // Check if admin

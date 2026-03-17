@@ -2,7 +2,7 @@
 // Registration handler
 header('Content-Type: application/json');
 
-require_once 'db.php';
+require_once '../database/db.php';
 startSession();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -92,6 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hashedPassword,
             $address
         ]);
+        
+        // Get the new user's ID
+        $newUserId = $pdo->lastInsertId();
+        
+        // Create user_sessions entry with default 30 sessions
+        $sessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 30)");
+        $sessionStmt->execute([$newUserId]);
         
         echo json_encode(['success' => true, 'message' => 'Registration successful! You can now login.']);
         
