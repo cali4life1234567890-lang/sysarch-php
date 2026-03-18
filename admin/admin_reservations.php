@@ -31,7 +31,6 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <nav class="navbar admin-navbar">
         <div class="nav-brand"> 
             <a href="admin_home.php" class="logo-group"> 
-                <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
                 <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
                 <h1 class="system-title">CCS Sit-In Monitoring System</h1>
             </a>

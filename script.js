@@ -311,6 +311,12 @@ function populateProfileData() {
     if (sessionsLeftEl && currentUser.sessions_left !== undefined) {
         sessionsLeftEl.textContent = currentUser.sessions_left;
     }
+    
+    // Also populate home remaining sessions if element exists
+    const homeSessionsLeftEl = document.getElementById('home-remaining-sessions');
+    if (homeSessionsLeftEl && currentUser.sessions_left !== undefined) {
+        homeSessionsLeftEl.textContent = currentUser.sessions_left;
+    }
 }
 
 // Logout function

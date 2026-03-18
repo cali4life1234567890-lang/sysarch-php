@@ -70,7 +70,6 @@ $userJson = json_encode($currentUser);
     <nav class="navbar">
       <div class="nav-brand"> 
         <a href="./" class="logo-group"> 
-          <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
           <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             College of Computer Studies Sit-In Monitoring System
@@ -78,9 +77,9 @@ $userJson = json_encode($currentUser);
         </a>
       </div>
       <div class="nav-links">
-        <a href="#" onclick="showSection('home')">Home</a>
-        <a href="#" onclick="showSection('about')">About Us</a>
-        <a href="#" onclick="showSection('community')">Community</a>
+        <a href="index.php">Home</a>
+        <a href="index.php?section=about">About Us</a>
+        <a href="community.php">Community</a>
 
         <span id="guest-links">
           <a href="#" onclick="showPage('login')">Login</a>

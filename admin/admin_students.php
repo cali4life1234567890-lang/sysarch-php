@@ -20,10 +20,12 @@ if (!$stmt->fetch()) {
 $students = [];
 try {
     $stmt = $pdo->query("
-        SELECT id, id_number, firstname, lastname, course, level, email, address, created_at
-        FROM users 
-        WHERE id_number != '2664388'
-        ORDER BY lastname, firstname
+        SELECT u.id, u.id_number, u.firstname, u.lastname, u.middlename, u.course, u.level, u.email, u.address, u.created_at,
+               COALESCE(us.remaining_sessions, 30) as remaining_sessions
+        FROM users u 
+        LEFT JOIN user_sessions us ON u.id = us.user_id
+        WHERE u.id_number != '2664388'
+        ORDER BY u.lastname, u.firstname
     ");
     $students = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -216,7 +218,101 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
             color: white;
         }
 
-        .loading-spinner {
+        .btn-edit {
+            background: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-edit:hover {
+            background: #218838;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+        }
+
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .table-toolbar .toolbar-left {
+            display: flex;
+            gap: 10px;
+        }
+
+        .table-toolbar .toolbar-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .table-toolbar .search-box {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            width: 200px;
+        }
+
+        .table-toolbar .search-box:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .table-toolbar .btn-secondary {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .table-toolbar .btn-secondary:hover {
+            background: #138496;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .edit-modal-overlay {
             text-align: center;
             padding: 30px;
         }
@@ -271,7 +367,6 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
     <nav class="navbar admin-navbar">
         <div class="nav-brand"> 
             <a href="admin_home.php" class="logo-group"> 
-                <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
                 <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
                 <h1 class="system-title">CCS Sit-In Monitoring System</h1>
             </a>
@@ -292,20 +387,24 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
     <div class="admin-content">
         <h1>Registered Students</h1>
         
-        <div class="toolbar">
-            <a href="admin_students.php?open_search=modal" class="btn-primary">Search Student</a>
-            <span class="student-count">Total: <?php echo count($students); ?> students</span>
+        <div class="table-toolbar">
+            <div class="toolbar-left">
+                <button class="btn-primary" onclick="openAddModal()">+ Add Student</button>
+                <button class="btn-secondary" onclick="resetAllSessions()">Reset All Sessions</button>
+            </div>
+            <div class="toolbar-right">
+                <input type="text" id="tableSearch" placeholder="Search..." onkeyup="filterTable()" class="search-box">
+            </div>
         </div>
-
-        <table class="data-table">
+        
+        <table class="data-table" id="studentsTable">
             <thead>
                 <tr>
-                    <th>ID Number</th>
-                    <th>Name</th>
-                    <th>Course</th>
-                    <th>Level</th>
-                    <th>Email</th>
-                    <th>Registered</th>
+                    <th onclick="sortTable(0)" style="cursor: pointer;">ID Number &#x2195;</th>
+                    <th onclick="sortTable(1)" style="cursor: pointer;">Name &#x2195;</th>
+                    <th onclick="sortTable(2)" style="cursor: pointer;">Year Level &#x2195;</th>
+                    <th onclick="sortTable(3)" style="cursor: pointer;">Course &#x2195;</th>
+                    <th onclick="sortTable(4)" style="cursor: pointer;">Remaining Sessions &#x2195;</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -314,13 +413,12 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                 <tr>
                     <td><?php echo htmlspecialchars($student['id_number']); ?></td>
                     <td><?php echo htmlspecialchars($student['firstname'] . ' ' . $student['lastname']); ?></td>
-                    <td><?php echo htmlspecialchars($student['course']); ?></td>
                     <td><?php echo htmlspecialchars($student['level']); ?></td>
-                    <td><?php echo htmlspecialchars($student['email']); ?></td>
-                    <td><?php echo htmlspecialchars(date('M d, Y', strtotime($student['created_at']))); ?></td>
+                    <td><?php echo htmlspecialchars($student['course']); ?></td>
+                    <td><span class="sessions-badge <?php echo $student['remaining_sessions'] <= 5 ? 'low' : ($student['remaining_sessions'] <= 15 ? 'medium' : ''); ?>"><?php echo $student['remaining_sessions']; ?></span></td>
                     <td>
-                        <a href="admin_sitin.php?student=<?php echo urlencode($student['id_number']); ?>" class="btn-small">Sit-In</a>
-                        <a href="admin_records.php?student=<?php echo urlencode($student['id_number']); ?>" class="btn-small">Records</a>
+                        <button class="btn-small btn-edit" onclick="openEditModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['id_number']); ?>', '<?php echo htmlspecialchars($student['firstname']); ?>', '<?php echo htmlspecialchars($student['lastname']); ?>', '<?php echo htmlspecialchars($student['middlename'] ?? ''); ?>', '<?php echo htmlspecialchars($student['course']); ?>', '<?php echo htmlspecialchars($student['level']); ?>', '<?php echo htmlspecialchars($student['email'] ?? ''); ?>', '<?php echo htmlspecialchars($student['address'] ?? ''); ?>', <?php echo $student['remaining_sessions']; ?>)">Edit</button>
+                        <button class="btn-small btn-delete" onclick="confirmDelete(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['firstname'] . ' ' . $student['lastname']); ?>')">Delete</button>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -406,7 +504,7 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
 
                     var registeredDate = new Date(student.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-                    resultsContainer.innerHTML = '<div class="student-info-card">' +
+                    resultsContainer.innerHTML = '<div class="student-info-card'>' +
                         '<h3>Student Information</h3>' +
                         '<div class="info-row"><span class="info-label">ID Number:</span><span class="info-value">' + student.id_number + '</span></div>' +
                         '<div class="info-row"><span class="info-label">Name:</span><span class="info-value">' + fullName + '</span></div>' +
@@ -416,7 +514,7 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                         '<div class="info-row"><span class="info-label">Sessions Left:</span><span class="info-value"><span class="sessions-badge ' + sessionClass + '">' + student.remaining_sessions + '</span></span></div>' +
                         '<div class="info-row"><span class="info-label">Registered:</span><span class="info-value">' + registeredDate + '</span></div>' +
                         '<div class="modal-actions">' +
-                        '<a href="admin_sitin.php?student=' + encodeURIComponent(student.id_number) + '" class="btn-sitin">Start Sit-In</a>' +
+                        '<button class="btn-sitin" onclick="showSitinModal(\'' + student.id_number + '\', \'' + escapeHtml(fullName) + '\', ' + student.remaining_sessions + ')">Start Sit-In</button>' +
                         '<a href="admin_records.php?student=' + encodeURIComponent(student.id_number) + '" class="btn-records">View Records</a>' +
                         '</div></div>';
                 } else {
@@ -465,6 +563,440 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
             openSearchModal();
         };
         <?php endif; ?>
+
+        // Table Sorting
+        var sortDirections = [true, true, true, true, true]; // true = ascending, false = descending
+        
+        // Table Filter
+        function filterTable() {
+            var input = document.getElementById('tableSearch');
+            var filter = input.value.toLowerCase();
+            var table = document.getElementById('studentsTable');
+            var tbody = table.querySelector('tbody');
+            var rows = tbody.querySelectorAll('tr');
+            
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                if (text.indexOf(filter) > -1) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        function sortTable(columnIndex) {
+            var table = document.getElementById('studentsTable');
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            sortDirections[columnIndex] = !sortDirections[columnIndex];
+            var direction = sortDirections[columnIndex] ? 1 : -1;
+            
+            rows.sort(function(a, b) {
+                var aText = a.cells[columnIndex].textContent.trim();
+                var bText = b.cells[columnIndex].textContent.trim();
+                
+                // For numeric columns (ID Number and Remaining Sessions)
+                if (columnIndex === 0 || columnIndex === 4) {
+                    var aNum = parseInt(aText) || 0;
+                    var bNum = parseInt(bText) || 0;
+                    return direction * (aNum - bNum);
+                }
+                
+                return direction * aText.localeCompare(bText);
+            });
+            
+            rows.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+        }
+
+        // Add Student Modal Functions
+        function openAddModal() {
+            document.getElementById('addIdNumber').value = '';
+            document.getElementById('addFirstname').value = '';
+            document.getElementById('addLastname').value = '';
+            document.getElementById('addMiddlename').value = '';
+            document.getElementById('addCourse').value = '';
+            document.getElementById('addLevel').value = '';
+            document.getElementById('addEmail').value = '';
+            document.getElementById('addAddress').value = '';
+            document.getElementById('addPassword').value = '';
+            document.getElementById('addModal').classList.add('active');
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('active');
+        }
+
+        async function addStudent() {
+            var idno = document.getElementById('addIdNumber').value.trim();
+            var firstname = document.getElementById('addFirstname').value.trim();
+            var lastname = document.getElementById('addLastname').value.trim();
+            var middlename = document.getElementById('addMiddlename').value.trim();
+            var course = document.getElementById('addCourse').value;
+            var level = document.getElementById('addLevel').value;
+            var email = document.getElementById('addEmail').value.trim();
+            var address = document.getElementById('addAddress').value.trim();
+            var password = document.getElementById('addPassword').value;
+
+            if (!idno || !firstname || !lastname || !course || !level || !password) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                var formData = new FormData();
+                formData.append('id_number', idno);
+                formData.append('firstname', firstname);
+                formData.append('lastname', lastname);
+                formData.append('middlename', middlename);
+                formData.append('course', course);
+                formData.append('level', level);
+                formData.append('email', email);
+                formData.append('address', address);
+                formData.append('password', password);
+
+                var response = await fetch('api_add_student.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+
+                if (data.success) {
+                    alert('Student added successfully!');
+                    closeAddModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error adding student');
+            }
+        }
+
+        // Reset All Sessions
+        async function resetAllSessions() {
+            if (!confirm('Are you sure you want to reset all students\' sessions to 30?')) {
+                return;
+            }
+
+            try {
+                var response = await fetch('api_reset_sessions.php', {
+                    method: 'POST'
+                });
+                var data = await response.json();
+
+                if (data.success) {
+                    alert('All sessions have been reset to 30!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error resetting sessions');
+            }
+        }
+
+        // Edit Modal Functions
+        function openEditModal(id, idno, firstname, lastname, middlename, course, level, email, address, sessions) {
+            document.getElementById('editStudentId').value = id;
+            document.getElementById('editIdNumber').value = idno;
+            document.getElementById('editFirstname').value = firstname;
+            document.getElementById('editLastname').value = lastname;
+            document.getElementById('editMiddlename').value = middlename;
+            document.getElementById('editCourse').value = course;
+            document.getElementById('editLevel').value = level;
+            document.getElementById('editEmail').value = email;
+            document.getElementById('editAddress').value = address;
+            document.getElementById('editSessions').value = sessions;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        async function saveStudent() {
+            var id = document.getElementById('editStudentId').value;
+            var firstname = document.getElementById('editFirstname').value.trim();
+            var lastname = document.getElementById('editLastname').value.trim();
+            var middlename = document.getElementById('editMiddlename').value.trim();
+            var course = document.getElementById('editCourse').value;
+            var level = document.getElementById('editLevel').value;
+            var email = document.getElementById('editEmail').value.trim();
+            var address = document.getElementById('editAddress').value.trim();
+            var sessions = parseInt(document.getElementById('editSessions').value);
+
+            if (!firstname || !lastname || !course || !level) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                var formData = new FormData();
+                formData.append('id', id);
+                formData.append('firstname', firstname);
+                formData.append('lastname', lastname);
+                formData.append('middlename', middlename);
+                formData.append('course', course);
+                formData.append('level', level);
+                formData.append('email', email);
+                formData.append('address', address);
+                formData.append('sessions', sessions);
+
+                var response = await fetch('api_update_student.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+
+                if (data.success) {
+                    alert('Student updated successfully!');
+                    closeEditModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error updating student');
+            }
+        }
+
+        // Delete Modal Functions
+        var deleteStudentId = null;
+        function confirmDelete(id, name) {
+            deleteStudentId = id;
+            document.getElementById('deleteStudentName').textContent = name;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+            deleteStudentId = null;
+        }
+
+        // Sit-In Modal Functions
+        function showSitinModal(idno, name, sessions) {
+            // Remove existing sit-in modal if any
+            var existingModal = document.getElementById('sitinModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Create modal HTML dynamically with proper modal styling
+            var modalHtml = '<div id="sitinModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; justify-content: center; align-items: center;">' +
+                '<div style="background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">' +
+                '<span onclick="closeSitinModal()" style="position: absolute; top: 10px; right: 20px; font-size: 28px; cursor: pointer; color: #666;">&times;</span>' +
+                '<h2 style="margin-top: 0;">Start Sit-In</h2>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">ID Number</label><input type="text" id="sitinIdNumber" value="' + idno + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Student Name</label><input type="text" id="sitinStudentName" value="' + name + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Purpose *</label><input type="text" id="sitinPurpose" placeholder="Enter purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;"></div>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label><input type="text" id="sitinLab" placeholder="Enter laboratory" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;"></div>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Remaining Sessions</label><input type="text" id="sitinRemainingSessions" value="' + sessions + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
+                '<button onclick="submitSitin()" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Start Sit-In</button>' +
+                '</div></div>';
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function closeSitinModal() {
+            var modal = document.getElementById('sitinModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function submitSitin() {
+            var idno = document.getElementById('sitinIdNumber').value;
+            var purpose = document.getElementById('sitinPurpose').value.trim();
+            var lab = document.getElementById('sitinLab').value;
+
+            if (!purpose || !lab) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                var formData = new FormData();
+                formData.append('id_number', idno);
+                formData.append('purpose', purpose);
+                formData.append('lab', lab);
+
+                var response = await fetch('api_start_sitin.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+
+                if (data.success) {
+                    alert('Sit-In started successfully!');
+                    closeSitinModal();
+                    closeSearchModal();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error starting sit-in');
+            }
+        }
+
+        async function deleteStudent() {
+            if (!deleteStudentId) return;
+
+            try {
+                var formData = new FormData();
+                formData.append('id', deleteStudentId);
+
+                var response = await fetch('api_delete_student.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+
+                if (data.success) {
+                    alert('Student deleted successfully!');
+                    closeDeleteModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error deleting student');
+            }
+        }
     </script>
+
+    <!-- Add Student Modal -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="closeAddModal()">&times;</span>
+            <h2>Add New Student</h2>
+            <div class="form-group">
+                <label>ID Number *</label>
+                <input type="text" id="addIdNumber" required>
+            </div>
+            <div class="form-group">
+                <label>First Name *</label>
+                <input type="text" id="addFirstname" required>
+            </div>
+            <div class="form-group">
+                <label>Last Name *</label>
+                <input type="text" id="addLastname" required>
+            </div>
+            <div class="form-group">
+                <label>Middle Name</label>
+                <input type="text" id="addMiddlename">
+            </div>
+            <div class="form-group">
+                <label>Course *</label>
+                <select id="addCourse" required>
+                    <option value="">Select Course</option>
+                    <option value="BSIT">BSIT</option>
+                    <option value="BSCpE">BSCpE</option>
+                    <option value="BSCE">BSCE</option>
+                    <option value="BSCrim">BSCrim</option>
+                    <option value="BSA">BSA</option>
+                    <option value="BSEd">BSEd</option>
+                    <option value="BSHRM">BSHRM</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Year Level *</label>
+                <select id="addLevel" required>
+                    <option value="">Select Level</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="addEmail">
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <input type="text" id="addAddress">
+            </div>
+            <div class="form-group">
+                <label>Password *</label>
+                <input type="password" id="addPassword" required>
+            </div>
+            <button class="btn-primary" onclick="addStudent()">Add Student</button>
+        </div>
+    </div>
+
+    <!-- Edit Student Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Student</h2>
+            <input type="hidden" id="editStudentId">
+            <input type="hidden" id="editIdNumber">
+            <div class="form-group">
+                <label>First Name *</label>
+                <input type="text" id="editFirstname" required>
+            </div>
+            <div class="form-group">
+                <label>Last Name *</label>
+                <input type="text" id="editLastname" required>
+            </div>
+            <div class="form-group">
+                <label>Middle Name</label>
+                <input type="text" id="editMiddlename">
+            </div>
+            <div class="form-group">
+                <label>Course *</label>
+                <select id="editCourse" required>
+                    <option value="BSIT">BSIT</option>
+                    <option value="BSCpE">BSCpE</option>
+                    <option value="BSCE">BSCE</option>
+                    <option value="BSCrim">BSCrim</option>
+                    <option value="BSA">BSA</option>
+                    <option value="BSEd">BSEd</option>
+                    <option value="BSHRM">BSHRM</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Year Level *</label>
+                <select id="editLevel" required>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="editEmail">
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <input type="text" id="editAddress">
+            </div>
+            <div class="form-group">
+                <label>Remaining Sessions</label>
+                <input type="number" id="editSessions" min="0" max="999">
+            </div>
+            <button class="btn-primary" onclick="saveStudent()">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+            <h2>Delete Student</h2>
+            <p>Are you sure you want to delete this student?</p>
+            <p><strong id="deleteStudentName"></strong></p>
+            <p style="color: #dc3545; font-size: 14px;">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn-small btn-delete" onclick="deleteStudent()">Delete</button>
+                <button class="btn-small" onclick="closeDeleteModal()" style="background: #6c757d; color: white;">Cancel</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

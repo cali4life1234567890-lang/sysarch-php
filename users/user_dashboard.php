@@ -138,24 +138,25 @@ function getHistory() {
     
     try {
         $query = "
-            SELECT id, lab_number, time_in, time_out, purpose
-            FROM sitin_records
-            WHERE user_id = ?
+            SELECT sr.id, sr.lab_number, sr.time_in, sr.time_out, sr.purpose, u.id_number, u.lastname, u.firstname, u.middlename
+            FROM sitin_records sr
+            JOIN users u ON sr.user_id = u.id
+            WHERE sr.user_id = ?
         ";
         
         $params = [$_SESSION['user_id']];
         
         if ($filter === 'today') {
-            $query .= " AND date(time_in) = date('now')";
+            $query .= " AND date(sr.time_in) = date('now')";
         } elseif ($filter === 'week') {
-            $query .= " AND time_in >= datetime('now', '-7 days')";
+            $query .= " AND sr.time_in >= datetime('now', '-7 days')";
         } elseif ($filter === 'month') {
-            $query .= " AND time_in >= datetime('now', '-30 days')";
+            $query .= " AND sr.time_in >= datetime('now', '-30 days')";
         } elseif ($filter === 'ongoing') {
-            $query .= " AND time_out IS NULL";
+            $query .= " AND sr.time_out IS NULL";
         }
         
-        $query .= " ORDER BY time_in DESC LIMIT 50";
+        $query .= " ORDER BY sr.time_in DESC LIMIT 50";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
@@ -170,14 +171,22 @@ function getHistory() {
                 $minutes = floor((($end - $start) % 3600) / 60);
                 $duration = $hours . 'h ' . $minutes . 'm';
             }
+            $fullName = $r['firstname'];
+            if (!empty($r['middlename'])) {
+                $fullName .= ' ' . $r['middlename'];
+            }
+            $fullName .= ' ' . $r['lastname'];
             return [
                 'id' => $r['id'],
+                'id_number' => $r['id_number'],
+                'name' => $fullName,
                 'lab' => $r['lab_number'],
                 'time_in' => $r['time_in'],
                 'time_out' => $r['time_out'],
                 'purpose' => $r['purpose'],
                 'duration' => $duration,
-                'status' => $r['time_out'] ? 'Completed' : 'Ongoing'
+                'status' => $r['time_out'] ? 'Completed' : 'Ongoing',
+                'date' => date('Y-m-d', strtotime($r['time_in']))
             ];
         }, $records);
         

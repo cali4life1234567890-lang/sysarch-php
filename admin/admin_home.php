@@ -52,7 +52,6 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <nav class="navbar admin-navbar">
         <div class="nav-brand"> 
             <a href="admin_home.php" class="logo-group"> 
-                <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
                 <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
                 <h1 class="system-title">CCS Sit-In Monitoring System</h1>
             </a>
@@ -73,46 +72,86 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <div class="admin-content">
         <h1>Admin Dashboard</h1>
         
-        <div class="dashboard-cards">
-            <div class="dash-card">
-                <h3>Total Students</h3>
-                <p class="dash-number"><?php echo $stats['total_students']; ?></p>
+        <div class="dashboard-grid">
+            <!-- Left Column: Statistics -->
+            <div class="dashboard-left">
+                <!-- Statistics Card -->
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <h2>Statistics</h2>
+                    </div>
+                    <div class="stat-rows">
+                        <div class="stat-row">
+                            <span class="stat-label">Total Students</span>
+                            <span class="stat-value"><?php echo $stats['total_students']; ?></span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Today's Sit-In</span>
+                            <span class="stat-value"><?php echo $stats['today_sitin']; ?></span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Total Records</span>
+                            <span class="stat-value"><?php echo $stats['total_records']; ?></span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Pending Reservations</span>
+                            <span class="stat-value"><?php echo $stats['pending_reservations']; ?></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Language Used Section -->
+                <div class="language-card">
+                    <div class="language-card-header">
+                        <h2>Language Used</h2>
+                    </div>
+                    <div class="language-grid">
+                        <div class="language-item">
+                            <div class="language-icon">C#</div>
+                            <span class="language-count">0</span>
+                        </div>
+                        <div class="language-item">
+                            <div class="language-icon">C</div>
+                            <span class="language-count">0</span>
+                        </div>
+                        <div class="language-item">
+                            <div class="language-icon">Java</div>
+                            <span class="language-count">0</span>
+                        </div>
+                        <div class="language-item">
+                            <div class="language-icon">ASP.Net</div>
+                            <span class="language-count">0</span>
+                        </div>
+                        <div class="language-item">
+                            <div class="language-icon">PHP</div>
+                            <span class="language-count">0</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="dash-card">
-                <h3>Today's Sit-In</h3>
-                <p class="dash-number"><?php echo $stats['today_sitin']; ?></p>
-            </div>
-            <div class="dash-card">
-                <h3>Total Records</h3>
-                <p class="dash-number"><?php echo $stats['total_records']; ?></p>
-            </div>
-            <div class="dash-card">
-                <h3>Pending Reservations</h3>
-                <p class="dash-number"><?php echo $stats['pending_reservations']; ?></p>
-            </div>
-        </div>
-
-        <!-- Announcement Section -->
-        <div class="announcement-admin-section">
-            <h2>📢 Post Announcement</h2>
-            <div class="announcement-form">
-                <textarea id="admin-announcement-text" placeholder="Write your announcement here..." rows="4"></textarea>
-                <button class="btn-primary" onclick="postAdminAnnouncement()">Post Announcement</button>
-            </div>
-
-            <h3>Posted Announcements</h3>
-            <div id="admin-announcement-list" class="admin-announcement-list">
-                <p class="no-announcements">No announcements yet</p>
-            </div>
-        </div>
-
-        <div class="quick-actions">
-            <h2>Quick Actions</h2>
-            <div class="action-buttons">
-                <a href="admin_sitin.php" class="action-btn">Start New Sit-In</a>
-                <a href="admin_students.php" class="action-btn">View All Students</a>
-                <a href="admin_records.php" class="action-btn">View Records</a>
-                <a href="admin_reports.php" class="action-btn">Generate Reports</a>
+            
+            <!-- Right Column: Announcements -->
+            <div class="dashboard-right">
+                <!-- New Assignment Input Section -->
+                <div class="assignment-card">
+                    <div class="assignment-card-header">
+                        <h2>Announcement</h2>                    
+                    </div>
+                    <div class="assignment-form">
+                        <textarea id="admin-announcement-text" class="assignment-textarea" placeholder="Post Announcement Here..."></textarea>
+                        <button class="btn-submit" onclick="postAdminAnnouncement()">Submit</button>
+                    </div>
+                </div>
+                
+                <!-- Posted Announcements Feed -->
+                <div class="announcements-feed">
+                    <div class="feed-header">
+                        <h3>Posted Announcements</h3>
+                    </div>
+                    <div id="admin-announcement-list" class="feed-list">
+                        <p class="no-announcements">No announcements yet</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -141,12 +180,15 @@ $adminName = $_SESSION['name'] ?? 'Admin';
 
         let html = '';
         announcements.forEach(announcement => {
-            html += `<div class="admin-announcement-item">
-                <div class="admin-announcement-header">
-                    <strong>CCS Admin</strong>
-                    <span class="admin-announcement-date">${announcement.date}</span>
+            html += `<div class="feed-item">
+                <div class="feed-item-accent"></div>
+                <div class="feed-item-content">
+                    <div class="feed-item-header">
+                        <strong class="feed-item-title">CCS Admin</strong>
+                        <span class="feed-item-time">${announcement.date}</span>
+                    </div>
+                    <p class="feed-item-body">${announcement.text}</p>
                 </div>
-                <p>${announcement.text}</p>
             </div>`;
         });
         list.innerHTML = html;

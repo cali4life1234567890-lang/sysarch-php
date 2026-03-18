@@ -64,7 +64,6 @@ $userJson = json_encode($currentUser);
     <nav class="navbar admin-navbar">
       <div class="nav-brand"> 
         <a href="admin/admin_home.php" class="logo-group"> 
-          <img src="imgs/uclogo.png" alt="University Logo" class="logo-main" />
           <img src="imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             CCS Sit-In Monitoring System (Admin)
@@ -277,7 +276,6 @@ $userJson = json_encode($currentUser);
         <?php else: ?>
           <a href="index.php" class="logo-group"> 
         <?php endif; ?>
-          <img src="imgs/uclogo.png" alt="University Logo" class="logo-main" />
           <img src="imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             CCS Sit-In Monitoring System
@@ -297,14 +295,15 @@ $userJson = json_encode($currentUser);
               </div>
             </div>
           </div>
-          <a href="#" onclick="showSection('user-home')" id="nav-home">Home</a>
-          <a href="#" onclick="showSection('user-profile')" id="nav-profile">Edit Profile</a>
+          <a href="index.php?section=user-home" id="nav-home">Home</a>
+          <a href="index.php?section=user-profile" id="nav-profile">Edit Profile</a>
           <a href="users/user_history.php" id="nav-history">History</a>
           <a href="users/user_reservation.php" id="nav-reservation">Reservation</a>
-          <a href="#" onclick="logout()">Logout</a>
+          <a href="reg-log-prof/logout.php" id="nav-logout">Logout</a>
         <?php else: ?>
           <!-- Guest Navigation -->
           <a href="#" onclick="showSection('home')">Home</a>
+          <a href="#" onclick="showSection('community')">Community</a>
           <a href="#" onclick="showSection('about')">About Us</a>
           <a href="#" onclick="showPage('login')" class="btn-login">Login</a>
           <a href="#" onclick="showPage('register')" class="btn-register">Register</a>
@@ -473,6 +472,10 @@ $userJson = json_encode($currentUser);
                   <span class="label">Email:</span>
                   <span class="value" id="home-student-email"><?php echo htmlspecialchars($currentUser['email']); ?></span>
                 </div>
+                <div class="info-item">
+                  <span class="label">Remaining Sessions:</span>
+                  <span class="value" id="home-remaining-sessions"><?php echo htmlspecialchars($currentUser['sessions_left']); ?></span>
+                </div>
               </div>
             </div>
           </div>
@@ -493,17 +496,13 @@ $userJson = json_encode($currentUser);
           <div class="rules-card">
             <h3>📋 Laboratory Rules and Regulations</h3>
             <div class="rules-list">
+              <p><strong>University of Cebu</strong></p>
+              <p><strong>COLLEGE OF INFORMATION & COMPUTER STUDIES</strong></p>
+              <p>To avoid embaressment and maintaion camaraderie with your friends and superiors at the laboratory, please observe the following:</p>
               <ul>
-                <li>No food or drinks inside the laboratory</li>
-                <li>No smoking inside the campus</li>
-                <li>Silence must be maintained at all times</li>
-                <li>Proper attire is required (no sleeveless, shorts, slippers)</li>
-                <li>Computers must be used for academic purposes only</li>
-                <li>Save all work to personal storage - local files may be deleted</li>
-                <li>Report any hardware problems immediately to the lab technician</li>
-                <li>Log out properly after each session</li>
-                <li>No installation of unauthorized software</li>
-                <li>Respect others' work and privacy</li>
+                <li>Maintain silence proper decorum, and discipline inside the laboratory. Mobile phones, walkmans, and other personal piece of equpment must be switched off.</li>
+                <li>Games are not allowed inside the lab. This includes computer-related games, card games, and other games that may distrub the operation of the lab.</li>
+                <li>Surfing the internet is allowed only with the permission of the instructor. Downloading and installing of software is strictly prohibited.</li>
               </ul>
             </div>
           </div>
@@ -560,16 +559,8 @@ $userJson = json_encode($currentUser);
       <h1>Community</h1>
       <div class="community-content">
         <div class="community-card">
-          <h2>Student Guidelines</h2>
-          <ul>
-            <li>Always bring your ID card when entering the laboratory</li>
-            <li>Sign in before using any computer</li>
-            <li>Sign out when leaving the laboratory</li>
-            <li>Handle equipment with care</li>
-            <li>No eating or drinking inside the lab</li>
-            <li>No installation of unauthorized software</li>
-            <li>Respect others' work and privacy</li>
-          </ul>
+          <h2>This is the Community Page</h2>
+          <p>This is where the community can see the events and activities of the university.</p>
         </div>
       </div>
     </div>
@@ -1069,6 +1060,14 @@ $userJson = json_encode($currentUser);
             document.getElementById('user-sitin-purpose').value = '';
             loadCurrentSitIn();
             loadUserStats();
+            // Update remaining sessions display
+            if (data.remaining_sessions !== undefined) {
+              currentUser.sessions_left = data.remaining_sessions;
+              const homeSessionsEl = document.getElementById('home-remaining-sessions');
+              if (homeSessionsEl) homeSessionsEl.textContent = data.remaining_sessions;
+              const profSessionsEl = document.getElementById('prof-sessions-left');
+              if (profSessionsEl) profSessionsEl.textContent = data.remaining_sessions;
+            }
           }
         });
       }

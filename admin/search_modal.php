@@ -297,10 +297,10 @@ async function searchStudent() {
                 '<div class="search-info-row"><span class="search-info-label">ID Number:</span><span class="search-info-value">' + student.id_number + '</span></div>' +
                 '<div class="search-info-row"><span class="search-info-label">Name:</span><span class="search-info-value">' + fullName + '</span></div>' +
                 '<div class="search-info-row"><span class="search-info-label">Course & Level:</span><span class="search-info-value">' + student.course + ' - ' + student.level + '</span></div>' +
-                '<div class="search-info-row"><span class="search-info-label">Email:</span><span class="search-info-value">' + (student.email || 'N/A') + '</span></div>' +
-                '<div class="search-info-row"><span class="search-info-label">Address:</span><span class="search-info-value">' + (student.address || 'N/A') + '</span></div>' +
                 '<div class="search-info-row"><span class="search-info-label">Sessions Left:</span><span class="search-info-value"><span class="search-sessions-badge ' + sessionClass + '">' + student.remaining_sessions + '</span></span></div>' +
-                '<div class="search-info-row"><span class="search-info-label">Registered:</span><span class="search-info-value">' + registeredDate + '</span></div>';
+                '<div class="search-modal-actions">' +
+                '<button class="search-btn-sitin" onclick="showSitinModal(\'' + student.id_number + '\', \'' + escapeHtml(fullName) + '\', ' + student.remaining_sessions + ')">Start Sit-In</button>' +
+                '</div></div>';
         } else {
             showSearchToast();
             resultsContainer.innerHTML = '<div class="search-no-result"><p>No student found matching "' + escapeHtml(query) + '"</p></div>';
@@ -341,4 +341,87 @@ window.onload = function() {
     openSearchModal();
 };
 <?php endif; ?>
+
+// Sit-In Modal Functions
+function showSitinModal(idno, name, sessions) {
+    // Remove existing sit-in modal if any
+    var existingModal = document.getElementById('sitinModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal HTML dynamically with proper modal styling
+    var modalHtml = `
+    <div id="sitinModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <span onclick="closeSitinModal()" style="position: absolute; top: 10px; right: 20px; font-size: 28px; cursor: pointer; color: #666;">&times;</span>
+            <h2 style="margin-top: 0;">Start Sit-In</h2>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">ID Number</label>
+                <input type="text" id="sitinIdNumber" value="${idno}" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Student Name</label>
+                <input type="text" id="sitinStudentName" value="${name}" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Purpose *</label>
+                <input type="text" id="sitinPurpose" placeholder="Enter purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label>
+                <input type="text" id="sitinLab" placeholder="Enter laboratory" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Remaining Sessions</label>
+                <input type="text" id="sitinRemainingSessions" value="${sessions}" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;">
+            </div>
+            <button onclick="submitSitin()" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Start Sit-In</button>
+        </div>
+    </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeSitinModal() {
+    var modal = document.getElementById('sitinModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function submitSitin() {
+    var idno = document.getElementById('sitinIdNumber').value;
+    var purpose = document.getElementById('sitinPurpose').value.trim();
+    var lab = document.getElementById('sitinLab').value;
+
+    if (!purpose || !lab) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    try {
+        var formData = new FormData();
+        formData.append('id_number', idno);
+        formData.append('purpose', purpose);
+        formData.append('lab', lab);
+
+        var response = await fetch('api_start_sitin.php', {
+            method: 'POST',
+            body: formData
+        });
+        var data = await response.json();
+
+        if (data.success) {
+            alert('Sit-In started successfully!');
+            closeSitinModal();
+            closeSearchModal();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error starting sit-in');
+    }
+}
 </script>

@@ -94,7 +94,6 @@ $userJson = json_encode($currentUser);
     <nav class="navbar user-navbar">
       <div class="nav-brand"> 
         <a href="../index.php" class="logo-group"> 
-          <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
           <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             CCS Sit-In Monitoring System
@@ -114,10 +113,10 @@ $userJson = json_encode($currentUser);
           </div>
         </div>
         <a href="../index.php" id="nav-home">Home</a>
-        <a href="../index.php?section=user-profile" onclick="showSection('user-profile'); return false;" id="nav-profile">Edit Profile</a>
+        <a href="../index.php?section=user-profile" id="nav-profile">Edit Profile</a>
         <a href="user_history.php" id="nav-history">History</a>
         <a href="user_reservation.php" id="nav-reservation">Reservation</a>
-        <a href="../reg-log-prof/logout.php">Logout</a>
+        <a href="../reg-log-prof/logout.php" id="nav-logout">Logout</a>
       </div>
     </nav>
 
@@ -125,29 +124,19 @@ $userJson = json_encode($currentUser);
     <div class="history-page">
       <div class="history-header">
         <h1>My Sit-In History</h1>
-        <a href="../index.php" class="back-link">← Back to Home</a>
-      </div>
-      
-      <div class="records-filters">
-        <select id="history-filter" class="auth-input" onchange="loadUserHistory()">
-          <option value="all">All Records</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="ongoing">Ongoing</option>
-        </select>
-        <button class="btn-primary" onclick="loadUserHistory()">Filter</button>
-      </div>
+</div>
       
       <table class="data-table">
         <thead>
           <tr>
-            <th>Lab</th>
-            <th>Time In</th>
-            <th>Time Out</th>
-            <th>Duration</th>
+            <th onclick="sortHistory('id_number')">ID Number ↕</th>
+            <th onclick="sortHistory('name')">Name ↕</th>
             <th>Purpose</th>
-            <th>Status</th>
+            <th>Lab</th>
+            <th>Login (Time In)</th>
+            <th>Logout (Time Out)</th>
+            <th onclick="sortHistory('date')">Date ↕</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody id="history-table-body">
@@ -244,27 +233,66 @@ $userJson = json_encode($currentUser);
       }
 
       // Display user history
+      let historyData = [];
+      let sortDirection = 1; // 1 for ascending, -1 for descending
+      
       function displayUserHistory(history) {
+        historyData = history;
         const tbody = document.getElementById('history-table-body');
         if (!tbody) return;
         
         if (history.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6">No records found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8">No records found</td></tr>';
           return;
         }
         
+        renderHistoryTable(history);
+      }
+      
+      function renderHistoryTable(data) {
+        const tbody = document.getElementById('history-table-body');
+        if (!tbody) return;
+        
         let html = '';
-        history.forEach(record => {
+        data.forEach(record => {
+          const timeIn = record.time_in ? record.time_in.split(' ')[1] : '';
+          const timeOut = record.time_out ? record.time_out.split(' ')[1] : 'Ongoing';
           html += `<tr>
-            <td>${record.lab}</td>
-            <td>${record.time_in}</td>
-            <td>${record.time_out || 'Ongoing'}</td>
-            <td>${record.duration || 'In progress'}</td>
+            <td>${record.id_number}</td>
+            <td>${record.name}</td>
             <td>${record.purpose}</td>
-            <td><span class="status-badge ${record.status === 'Completed' ? 'status-completed' : 'status-ongoing'}">${record.status}</span></td>
+            <td>${record.lab}</td>
+            <td>${timeIn}</td>
+            <td>${timeOut}</td>
+            <td>${record.date}</td>
+            <td><button class="btn-primary" onclick="openFeedback(${record.id})">Feedback</button></td>
           </tr>`;
         });
         tbody.innerHTML = html;
+      }
+      
+      // Sort history by column
+      function sortHistory(column) {
+        sortDirection *= -1;
+        const sorted = [...historyData].sort((a, b) => {
+          let valA = a[column];
+          let valB = b[column];
+          if (column === 'id_number' || column === 'date') {
+            valA = valA || '';
+            valB = valB || '';
+            return valA.localeCompare(valB) * sortDirection;
+          }
+          if (typeof valA === 'string') {
+            return valA.localeCompare(valB) * sortDirection;
+          }
+          return (valA > valB ? 1 : -1) * sortDirection;
+        });
+        renderHistoryTable(sorted);
+      }
+      
+      // Open feedback modal
+      function openFeedback(recordId) {
+        alert('Feedback for record #' + recordId + ' - This feature is coming soon!');
       }
     </script>
   </body>

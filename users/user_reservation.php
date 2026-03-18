@@ -183,7 +183,6 @@ $userJson = json_encode($currentUser);
     <nav class="navbar user-navbar">
       <div class="nav-brand"> 
         <a href="../index.php" class="logo-group"> 
-          <img src="../imgs/uclogo.png" alt="University Logo" class="logo-main" />
           <img src="../imgs/ccslogo.png" alt="Department Logo" class="logo-sub" />
           <h1 class="system-title">
             CCS Sit-In Monitoring System
@@ -203,10 +202,10 @@ $userJson = json_encode($currentUser);
           </div>
         </div>
         <a href="../index.php" id="nav-home">Home</a>
-        <a href="../index.php?section=user-profile" onclick="showSection('user-profile'); return false;" id="nav-profile">Edit Profile</a>
+        <a href="../index.php?section=user-profile" id="nav-profile">Edit Profile</a>
         <a href="user_history.php" id="nav-history">History</a>
         <a href="user_reservation.php" id="nav-reservation">Reservation</a>
-        <a href="../reg-log-prof/logout.php">Logout</a>
+        <a href="../reg-log-prof/logout.php" id="nav-logout">Logout</a>
       </div>
     </nav>
 
@@ -267,7 +266,7 @@ $userJson = json_encode($currentUser);
               <input type="text" id="reservation-purpose" placeholder="Enter purpose" required />
             </div>
           </div>
-          <button type="submit" class="btn-primary">Reserve</button>
+          <button type="submit" class="btn-primary" onclick="submitReservation(event)">Reserve</button>
         </form>
       </div>
     </div>
@@ -397,35 +396,9 @@ $userJson = json_encode($currentUser);
       function submitReservation(event) {
         event.preventDefault();
         
-        const time = document.getElementById('reservation-time').value;
-        const date = document.getElementById('reservation-date').value;
-        const lab = document.getElementById('reservation-lab').value;
-        const purpose = document.getElementById('reservation-purpose').value;
-
-        if (!time || !date || !lab || !purpose) {
-          alert('Please fill in all fields');
-          return;
-        }
-
-        fetch('user_dashboard.php?action=make_reservation', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            lab: lab,
-            date: date,
-            start_time: time,
-            end_time: '',
-            purpose: purpose
-          })
-        })
-        .then(res => res.json())
-        .then(data => {
-          alert(data.message);
-          if (data.success) {
-            document.getElementById('reservation-form').reset();
-            loadUserReservations();
-          }
-        });
+        // This feature is coming soon
+        console.log('Reserve button clicked');
+        alert('This feature is coming soon!');
       }
 
       // Load user reservations
