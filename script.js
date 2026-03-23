@@ -136,6 +136,7 @@ async function validateLogin() {
             if (data.is_admin) {
                 window.location.href = 'admin/admin_home.php';
             } else {
+                // Reload page to show user view
                 window.location.reload();
             }
         } else {

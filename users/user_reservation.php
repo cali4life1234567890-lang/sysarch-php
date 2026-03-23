@@ -201,7 +201,7 @@ $userJson = json_encode($currentUser);
             </div>
           </div>
         </div>
-        <a href="../index.php" id="nav-home">Home</a>
+        <a href="../index.php?section=user-home" id="nav-home">Home</a>
         <a href="../index.php?section=user-profile" id="nav-profile">Edit Profile</a>
         <a href="user_history.php" id="nav-history">History</a>
         <a href="user_reservation.php" id="nav-reservation">Reservation</a>
@@ -234,8 +234,15 @@ $userJson = json_encode($currentUser);
               <input type="text" id="sitin-purpose" placeholder="Enter purpose" required />
             </div>
             <div class="form-group">
-              <label for="sitin-lab">Lab:</label>
-              <input type="text" id="sitin-lab" placeholder="Enter lab" required />
+              <label for="sitin-lab">Laboratory:</label>
+              <select id="sitin-lab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
+                <option value="">Select Laboratory</option>
+                <option value="524">Lab 524</option>
+                <option value="526">Lab 526</option>
+                <option value="528">Lab 528</option>
+                <option value="530">Lab 530</option>
+                <option value="MAC">MAC Lab</option>
+              </select>
             </div>
           </div>
           <button type="submit" class="btn-primary">Submit</button>
@@ -258,8 +265,15 @@ $userJson = json_encode($currentUser);
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="reservation-lab">Lab:</label>
-              <input type="text" id="reservation-lab" placeholder="Enter lab" required />
+              <label for="reservation-lab">Laboratory:</label>
+              <select id="reservation-lab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
+                <option value="">Select Laboratory</option>
+                <option value="524">Lab 524</option>
+                <option value="526">Lab 526</option>
+                <option value="528">Lab 528</option>
+                <option value="530">Lab 530</option>
+                <option value="MAC">MAC Lab</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="reservation-purpose">Purpose:</label>

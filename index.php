@@ -513,8 +513,8 @@ $userJson = json_encode($currentUser);
 
 
 
-    <!-- Regular User Sections -->
-    <?php if (!$isAdmin): ?>
+    <!-- Regular User Sections (Guest Home - Only for non-logged-in users) -->
+    <?php if (!$currentUser && !$isAdmin): ?>
     <div id="home" class="content-section">
       <div class="home-hero">
         <h1>Welcome to CCS Sit-In Monitoring System</h1>

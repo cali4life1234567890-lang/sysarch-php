@@ -430,140 +430,10 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
         <?php endif; ?>
     </div>
 
-    <!-- Search Student Modal -->
-    <div class="modal-overlay" id="searchModal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeSearchModal()">&times;</span>
-            <div class="search-modal-header">
-                <h2>Search Student</h2>
-            </div>
-            
-            <div class="search-input-group">
-                <input type="text" id="studentSearchInput" placeholder="Enter ID Number or Name" autocomplete="off">
-                <button onclick="searchStudent()">Search</button>
-            </div>
-
-            <div id="searchResults">
-                <!-- Results will be displayed here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div class="toast-notification" id="toastNotification">
-        Student not found in the system
-    </div>
+    <!-- Include shared search modal -->
+    <?php include 'search_modal.php'; ?>
 
     <script>
-        // Open search modal
-        function openSearchModal() {
-            document.getElementById('searchModal').classList.add('active');
-            document.getElementById('studentSearchInput').focus();
-            document.getElementById('searchResults').innerHTML = '';
-        }
-
-        // Close search modal
-        function closeSearchModal() {
-            document.getElementById('searchModal').classList.remove('active');
-            document.getElementById('studentSearchInput').value = '';
-            document.getElementById('searchResults').innerHTML = '';
-        }
-
-        // Search student via AJAX
-        async function searchStudent() {
-            var query = document.getElementById('studentSearchInput').value.trim();
-            var resultsContainer = document.getElementById('searchResults');
-            
-            if (!query) {
-                return;
-            }
-
-            // Show loading spinner
-            resultsContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Searching...</p></div>';
-
-            try {
-                var response = await fetch('api_search_student.php?q=' + encodeURIComponent(query));
-                var data = await response.json();
-
-                if (data.error) {
-                    resultsContainer.innerHTML = '<div class="no-result-message"><p>Error: ' + data.error + '</p></div>';
-                    return;
-                }
-
-                if (data.found) {
-                    var student = data.student;
-                    var fullName = student.firstname + ' ' + (student.middlename ? student.middlename + ' ' : '') + student.lastname;
-                    
-                    // Determine session badge color
-                    var sessionClass = '';
-                    if (student.remaining_sessions <= 5) {
-                        sessionClass = 'low';
-                    } else if (student.remaining_sessions <= 15) {
-                        sessionClass = 'medium';
-                    }
-
-                    var registeredDate = new Date(student.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-                    resultsContainer.innerHTML = '<div class="student-info-card'>' +
-                        '<h3>Student Information</h3>' +
-                        '<div class="info-row"><span class="info-label">ID Number:</span><span class="info-value">' + student.id_number + '</span></div>' +
-                        '<div class="info-row"><span class="info-label">Name:</span><span class="info-value">' + fullName + '</span></div>' +
-                        '<div class="info-row"><span class="info-label">Course & Level:</span><span class="info-value">' + student.course + ' - ' + student.level + '</span></div>' +
-                        '<div class="info-row"><span class="info-label">Email:</span><span class="info-value">' + (student.email || 'N/A') + '</span></div>' +
-                        '<div class="info-row"><span class="info-label">Address:</span><span class="info-value">' + (student.address || 'N/A') + '</span></div>' +
-                        '<div class="info-row"><span class="info-label">Sessions Left:</span><span class="info-value"><span class="sessions-badge ' + sessionClass + '">' + student.remaining_sessions + '</span></span></div>' +
-                        '<div class="info-row"><span class="info-label">Registered:</span><span class="info-value">' + registeredDate + '</span></div>' +
-                        '<div class="modal-actions">' +
-                        '<button class="btn-sitin" onclick="showSitinModal(\'' + student.id_number + '\', \'' + escapeHtml(fullName) + '\', ' + student.remaining_sessions + ')">Start Sit-In</button>' +
-                        '<a href="admin_records.php?student=' + encodeURIComponent(student.id_number) + '" class="btn-records">View Records</a>' +
-                        '</div></div>';
-                } else {
-                    // Show toast notification
-                    showToast();
-                    resultsContainer.innerHTML = '<div class="no-result-message"><div class="icon">X</div><p>No student found matching "' + escapeHtml(query) + '"</p></div>';
-                }
-            } catch (error) {
-                resultsContainer.innerHTML = '<div class="no-result-message"><p>Error searching for student</p></div>';
-            }
-        }
-
-        // Show toast notification
-        function showToast() {
-            var toast = document.getElementById('toastNotification');
-            toast.classList.add('show');
-            setTimeout(function() {
-                toast.classList.remove('show');
-            }, 3000);
-        }
-
-        // Escape HTML to prevent XSS
-        function escapeHtml(text) {
-            var div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Allow pressing Enter to search
-        document.getElementById('studentSearchInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchStudent();
-            }
-        });
-
-        // Close modal when clicking outside
-        document.getElementById('searchModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeSearchModal();
-            }
-        });
-
-        // Auto-open modal if requested
-        <?php if ($autoOpenModal): ?>
-        window.onload = function() {
-            openSearchModal();
-        };
-        <?php endif; ?>
-
         // Table Sorting
         var sortDirections = [true, true, true, true, true]; // true = ascending, false = descending
         
@@ -793,7 +663,7 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                 '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">ID Number</label><input type="text" id="sitinIdNumber" value="' + idno + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
                 '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Student Name</label><input type="text" id="sitinStudentName" value="' + name + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
                 '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Purpose *</label><input type="text" id="sitinPurpose" placeholder="Enter purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;"></div>' +
-                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label><input type="text" id="sitinLab" placeholder="Enter laboratory" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;"></div>' +
+                '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label><select id="sitinLab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;"><option value="">Select Laboratory</option><option value="524">524</option><option value="526">526</option><option value="528">528</option><option value="530">530</option><option value="MAC">MAC</option></select></div>' +
                 '<div style="margin-bottom: 15px;"><label style="display: block; margin-bottom: 5px; font-weight: bold;">Remaining Sessions</label><input type="text" id="sitinRemainingSessions" value="' + sessions + '" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;"></div>' +
                 '<button onclick="submitSitin()" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Start Sit-In</button>' +
                 '</div></div>';
@@ -989,11 +859,11 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
         <div class="modal-content" style="max-width: 400px; text-align: center;">
             <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
             <h2>Delete Student</h2>
-            <p>Are you sure you want to delete this student?</p>
+            <p>Want to delete user?</p>
             <p><strong id="deleteStudentName"></strong></p>
             <p style="color: #dc3545; font-size: 14px;">This action cannot be undone.</p>
             <div class="modal-actions">
-                <button class="btn-small btn-delete" onclick="deleteStudent()">Delete</button>
+                <button class="btn-small btn-delete" id="deleteConfirmBtn" onclick="deleteStudent()">Delete</button>
                 <button class="btn-small" onclick="closeDeleteModal()" style="background: #6c757d; color: white;">Cancel</button>
             </div>
         </div>

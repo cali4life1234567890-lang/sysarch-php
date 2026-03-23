@@ -173,6 +173,14 @@ span {
   text-decoration: none;
 }
 
+/* Auth form Register/Login links - override white color */
+.auth-card p span,
+.auth-form p span,
+.switch-to-register span,
+.switch-to-login span {
+  color: #0066cc;
+}
+
 .content-section {
   padding: 50px;
   text-align: center; 

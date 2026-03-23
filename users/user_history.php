@@ -112,7 +112,7 @@ $userJson = json_encode($currentUser);
             </div>
           </div>
         </div>
-        <a href="../index.php" id="nav-home">Home</a>
+        <a href="../index.php?section=user-home" id="nav-home">Home</a>
         <a href="../index.php?section=user-profile" id="nav-profile">Edit Profile</a>
         <a href="user_history.php" id="nav-history">History</a>
         <a href="user_reservation.php" id="nav-reservation">Reservation</a>

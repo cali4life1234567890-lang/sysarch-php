@@ -42,17 +42,8 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
     }
 }
 
-// Redirect admin to admin dashboard
-if ($isAdmin) {
-    header('Location: ../admin/admin_home.php');
-    exit;
-}
-
-// Redirect logged-in users to main index
-if ($currentUser && !$isAdmin) {
-    header('Location: ../index.php');
-    exit;
-}
+// Don't redirect - this is the guest landing page
+// User pages are available at user_home.php and profile.php for logged-in users
 
 // Pass user data to JavaScript
 $userJson = json_encode($currentUser);
