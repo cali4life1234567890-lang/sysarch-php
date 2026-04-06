@@ -229,8 +229,24 @@ function getStudents() {
 }
 
 function getFeedback() {
-    // Placeholder - would need a feedback table
-    echo json_encode(['success' => true, 'feedback' => []]);
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT f.id, f.feedback_text, f.rating, f.created_at, 
+                   u.id_number, u.firstname, u.lastname
+            FROM feedback f
+            JOIN users u ON f.user_id = u.id
+            ORDER BY f.created_at DESC
+            LIMIT 50
+        ");
+        $stmt->execute();
+        $feedback = $stmt->fetchAll();
+        
+        echo json_encode(['success' => true, 'feedback' => $feedback]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
 }
 
 function getReservations() {

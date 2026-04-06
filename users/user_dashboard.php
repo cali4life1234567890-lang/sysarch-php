@@ -58,6 +58,9 @@ switch ($action) {
     case 'remaining_sessions':
         getRemainingSessions();
         break;
+    case 'submit_feedback':
+        submitFeedback();
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -487,6 +490,29 @@ function markNotificationRead() {
         $stmt->execute([$notificationId, $_SESSION['user_id']]);
         
         echo json_encode(['success' => true, 'message' => 'Notification marked as read']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function submitFeedback() {
+    global $pdo;
+    
+    $data = json_decode(file_get_contents('php://input'), true);
+    $feedbackText = $data['feedback_text'] ?? '';
+    $rating = $data['rating'] ?? 5;
+    $sitinRecordId = $data['sitin_record_id'] ?? null;
+    
+    if (empty($feedbackText)) {
+        echo json_encode(['success' => false, 'message' => 'Feedback text is required']);
+        return;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("INSERT INTO feedback (user_id, sitin_record_id, feedback_text, rating) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$_SESSION['user_id'], $sitinRecordId, $feedbackText, $rating]);
+        
+        echo json_encode(['success' => true, 'message' => 'Feedback submitted successfully']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

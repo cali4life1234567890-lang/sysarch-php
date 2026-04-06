@@ -145,6 +145,100 @@ $userJson = json_encode($currentUser);
       </table>
     </div>
 
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close" onclick="closeFeedbackModal()">&times;</span>
+        <h2>Submit Feedback</h2>
+        <p class="feedback-subtitle">We value your feedback about your sit-in experience</p>
+        <div class="form-group">
+          <label>Rating:</label>
+          <div class="rating-stars">
+            <span class="star" data-rating="1" onclick="setRating(1)">★</span>
+            <span class="star" data-rating="2" onclick="setRating(2)">★</span>
+            <span class="star" data-rating="3" onclick="setRating(3)">★</span>
+            <span class="star" data-rating="4" onclick="setRating(4)">★</span>
+            <span class="star" data-rating="5" onclick="setRating(5)">★</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="feedback-text">Your Feedback:</label>
+          <textarea id="feedback-text" rows="4" placeholder="Tell us about your experience..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+        <div id="feedback-message"></div>
+      </div>
+    </div>
+
+    <style>
+      .modal {
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+      }
+      .modal-content {
+        background-color: #fff;
+        margin: 10% auto;
+        padding: 20px;
+        border-radius: 8px;
+        width: 400px;
+        max-width: 90%;
+      }
+      .close {
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .close:hover {
+        color: #000;
+      }
+      .rating-stars {
+        font-size: 24px;
+        cursor: pointer;
+      }
+      .star {
+        color: #ccc;
+        transition: color 0.2s;
+      }
+      .star.active {
+        color: #ffc107;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      .form-group textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        resize: vertical;
+      }
+      .feedback-subtitle {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 20px;
+      }
+      #feedback-message {
+        margin-top: 10px;
+      }
+      #feedback-message.success {
+        color: green;
+      }
+      #feedback-message.error {
+        color: red;
+      }
+    </style>
+
     <script>
       // Initialize on page load
       document.addEventListener('DOMContentLoaded', function() {
@@ -291,8 +385,82 @@ $userJson = json_encode($currentUser);
       }
       
       // Open feedback modal
+      let currentFeedbackRecordId = null;
+      let currentRating = 5;
+      
       function openFeedback(recordId) {
-        alert('Feedback for record #' + recordId + ' - This feature is coming soon!');
+        currentFeedbackRecordId = recordId;
+        currentRating = 5;
+        document.getElementById('feedback-text').value = '';
+        document.getElementById('feedback-message').textContent = '';
+        document.getElementById('feedback-message').className = '';
+        updateStars(5);
+        document.getElementById('feedback-modal').style.display = 'block';
+      }
+      
+      function closeFeedbackModal() {
+        document.getElementById('feedback-modal').style.display = 'none';
+      }
+      
+      function setRating(rating) {
+        currentRating = rating;
+        updateStars(rating);
+      }
+      
+      function updateStars(rating) {
+        const stars = document.querySelectorAll('.star');
+        stars.forEach(star => {
+          if (parseInt(star.dataset.rating) <= rating) {
+            star.classList.add('active');
+          } else {
+            star.classList.remove('active');
+          }
+        });
+      }
+      
+      function submitFeedback() {
+        const feedbackText = document.getElementById('feedback-text').value.trim();
+        
+        if (!feedbackText) {
+          document.getElementById('feedback-message').textContent = 'Please enter your feedback';
+          document.getElementById('feedback-message').className = 'error';
+          return;
+        }
+        
+        fetch('user_dashboard.php?action=submit_feedback', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            feedback_text: feedbackText,
+            rating: currentRating,
+            sitin_record_id: currentFeedbackRecordId
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            document.getElementById('feedback-message').textContent = 'Thank you for your feedback!';
+            document.getElementById('feedback-message').className = 'success';
+            setTimeout(() => {
+              closeFeedbackModal();
+            }, 1500);
+          } else {
+            document.getElementById('feedback-message').textContent = data.message || 'Error submitting feedback';
+            document.getElementById('feedback-message').className = 'error';
+          }
+        })
+        .catch(error => {
+          document.getElementById('feedback-message').textContent = 'Error submitting feedback';
+          document.getElementById('feedback-message').className = 'error';
+        });
+      }
+      
+      // Close modal when clicking outside
+      window.onclick = function(event) {
+        const modal = document.getElementById('feedback-modal');
+        if (event.target === modal) {
+          closeFeedbackModal();
+        }
       }
     </script>
   </body>

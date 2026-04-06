@@ -26,6 +26,40 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <title>Feedback - CCS Sit-In System</title>
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="admin.css">
+    <style>
+        .feedback-cards {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .feedback-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .feedback-student {
+            font-weight: bold;
+            color: #333;
+        }
+        .feedback-rating {
+            color: #ffc107;
+        }
+        .feedback-date {
+            color: #666;
+            font-size: 12px;
+        }
+        .feedback-text {
+            color: #333;
+            line-height: 1.5;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar admin-navbar">
@@ -51,11 +85,56 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <div class="admin-content">
         <h1>Feedback</h1>
         
-        <div class="empty-state">
-            <p>No feedback submitted yet.</p>
-            <p class="sub-text">Feedback functionality will be available once students start using the system.</p>
+        <div id="feedback-container">
+            <p>Loading feedback...</p>
         </div>
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFeedback();
+        });
+
+        function loadFeedback() {
+            fetch('admin_dashboard.php?action=feedback')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        displayFeedback(data.feedback);
+                    } else {
+                        document.getElementById('feedback-container').innerHTML = '<p>Error loading feedback</p>';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('feedback-container').innerHTML = '<p>Error loading feedback</p>';
+                });
+        }
+
+        function displayFeedback(feedbackList) {
+            const container = document.getElementById('feedback-container');
+            
+            if (!feedbackList || feedbackList.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No feedback submitted yet.</p><p class="sub-text">Feedback from students will appear here.</p></div>';
+                return;
+            }
+
+            let html = '<div class="feedback-cards">';
+            feedbackList.forEach(item => {
+                const stars = '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating);
+                const fullName = (item.firstname || '') + ' ' + (item.lastname || '');
+                html += `<div class="feedback-card">
+                    <div class="feedback-header">
+                        <span class="feedback-student">${item.id_number} - ${fullName}</span>
+                        <span class="feedback-rating">${stars}</span>
+                    </div>
+                    <div class="feedback-date">${item.created_at}</div>
+                    <p class="feedback-text">${item.feedback_text}</p>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+    </script>
     
     <?php require_once 'search_modal.php'; ?>
 </body>

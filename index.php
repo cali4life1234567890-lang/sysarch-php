@@ -610,12 +610,49 @@ $userJson = json_encode($currentUser);
           });
         // Load admin announcements
         loadAdminAnnouncements();
+        // Load feedback
+        loadAdminFeedback();
       }
 
       // Load admin announcements
       function loadAdminAnnouncements() {
         const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
         displayAdminAnnouncements(announcements);
+      }
+
+      // Load feedback for admin
+      function loadAdminFeedback() {
+        fetch('admin/admin_dashboard.php?action=feedback')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              displayAdminFeedback(data.feedback);
+            }
+          });
+      }
+
+      // Display feedback in admin section
+      function displayAdminFeedback(feedbackList) {
+        const tbody = document.getElementById('feedback-table-body');
+        if (!tbody) return;
+
+        if (!feedbackList || feedbackList.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4">No feedback submitted yet</td></tr>';
+          return;
+        }
+
+        let html = '';
+        feedbackList.forEach(item => {
+          const stars = '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating);
+          const fullName = (item.firstname || '') + ' ' + (item.lastname || '');
+          html += `<tr>
+            <td>${item.created_at ? item.created_at.split(' ')[0] : ''}</td>
+            <td>${item.id_number} - ${fullName}</td>
+            <td>${item.feedback_text}</td>
+            <td>${stars}</td>
+          </tr>`;
+        });
+        tbody.innerHTML = html;
       }
 
       // Display admin announcements

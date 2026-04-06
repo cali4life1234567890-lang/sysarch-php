@@ -59,6 +59,20 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
+
+    // Create feedback table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            sitin_record_id INTEGER,
+            feedback_text TEXT NOT NULL,
+            rating INTEGER DEFAULT 5,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (sitin_record_id) REFERENCES sitin_records(id)
+        )
+    ");
     
     // Create admin account if not exists
     $adminCheck = $pdo->query("SELECT id FROM users WHERE id_number = '2664388'");
