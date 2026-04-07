@@ -210,18 +210,29 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         const day = String(now.getDate()).padStart(2, '0');
         const dateStr = `${year}-${mon}-${day}`;
 
-        // Get existing announcements
+        // Save to localStorage (for admin view)
         const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
-
-        // Add new announcement at the beginning
         announcements.unshift({
             text: text,
             date: dateStr,
             postedAt: now.toISOString()
         });
-
-        // Save to localStorage
         localStorage.setItem('admin_announcements', JSON.stringify(announcements));
+
+        // Also save to database for user notifications
+        fetch('admin_dashboard.php?action=post_announcement', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                title: 'New Announcement',
+                message: text
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('Announcement saved:', data);
+        })
+        .catch(err => console.error('Error saving announcement:', err));
 
         // Clear textarea
         document.getElementById('admin-announcement-text').value = '';

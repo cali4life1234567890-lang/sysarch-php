@@ -46,6 +46,9 @@ switch ($action) {
     case 'mark_notification_read':
         markNotificationRead();
         break;
+    case 'mark_all_notifications_read':
+        markAllNotificationsRead();
+        break;
     case 'current_sitin':
         getCurrentSitIn();
         break;
@@ -60,6 +63,21 @@ switch ($action) {
         break;
     case 'submit_feedback':
         submitFeedback();
+        break;
+    case 'get_lab_pc_status':
+        getLabPcStatus();
+        break;
+    case 'reserve_pc':
+        reservePc();
+        break;
+    case 'sync_pc_status':
+        syncPcStatus();
+        break;
+    case 'change_password':
+        changePassword();
+        break;
+    case 'reset_all_passwords':
+        resetAllPasswords();
         break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
@@ -130,6 +148,57 @@ function updateProfile() {
         $_SESSION['name'] = $fullName;
         
         echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function changePassword() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $oldPassword = $input['old_password'] ?? '';
+    $newPassword = $input['new_password'] ?? '';
+    $confirmPassword = $input['confirm_password'] ?? '';
+    
+    if (empty($oldPassword) || empty($newPassword) || empty($confirmPassword)) {
+        echo json_encode(['success' => false, 'message' => 'All password fields are required']);
+        return;
+    }
+    
+    if ($newPassword !== $confirmPassword) {
+        echo json_encode(['success' => false, 'message' => 'New password and confirm password do not match']);
+        return;
+    }
+    
+    if (strlen($newPassword) < 6) {
+        echo json_encode(['success' => false, 'message' => 'New password must be at least 6 characters']);
+        return;
+    }
+    
+    try {
+        // Get current password hash
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        
+        if (!$user) {
+            echo json_encode(['success' => false, 'message' => 'User not found']);
+            return;
+        }
+        
+        // Verify old password
+        if (!password_verify($oldPassword, $user['password'])) {
+            echo json_encode(['success' => false, 'message' => 'Old password is incorrect']);
+            return;
+        }
+        
+        // Update to new password
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $updateStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $updateStmt->execute([$newHash, $_SESSION['user_id']]);
+        
+        echo json_encode(['success' => true, 'message' => 'Password changed successfully']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
@@ -237,6 +306,7 @@ function startSitIn() {
     
     $lab = $input['lab'] ?? '';
     $purpose = $input['purpose'] ?? '';
+    $pc_number = $input['pc_number'] ?? null;
     
     if (empty($lab) || empty($purpose)) {
         echo json_encode(['success' => false, 'message' => 'Lab and purpose are required']);
@@ -264,8 +334,15 @@ function startSitIn() {
     }
     
     try {
-        $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, purpose) VALUES (?, ?, ?)");
-        $insertStmt->execute([$_SESSION['user_id'], $lab, $purpose]);
+        // Ensure pc_number column exists in sitin_records
+        try {
+            $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
+        } catch (PDOException $e) {
+            // Column might already exist, ignore
+        }
+        
+        $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose) VALUES (?, ?, ?, ?)");
+        $insertStmt->execute([$_SESSION['user_id'], $lab, $pc_number, $purpose]);
         
         // Decrement remaining sessions
         if ($sessionResult) {
@@ -274,6 +351,12 @@ function startSitIn() {
         } else {
             $insertSessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 29)");
             $insertSessionStmt->execute([$_SESSION['user_id']]);
+        }
+        
+        // Update PC status to occupied if PC number is provided
+        if ($pc_number) {
+            $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'occupied' WHERE lab_number = ? AND pc_number = ?");
+            $stmt->execute([$lab, $pc_number]);
         }
         
         echo json_encode(['success' => true, 'message' => 'Sit-In started successfully', 'remaining_sessions' => $remainingSessions - 1]);
@@ -339,6 +422,7 @@ function getReservations() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             lab_number TEXT NOT NULL,
+            pc_number INTEGER,
             reservation_date DATE NOT NULL,
             start_time TIME NOT NULL,
             end_time TIME NOT NULL,
@@ -351,7 +435,7 @@ function getReservations() {
     
     try {
         $stmt = $pdo->prepare("
-            SELECT id, lab_number, reservation_date, start_time, end_time, purpose, status, created_at
+            SELECT id, lab_number, pc_number, reservation_date, start_time, end_time, purpose, status, created_at
             FROM reservations
             WHERE user_id = ?
             ORDER BY reservation_date DESC, start_time DESC
@@ -381,12 +465,13 @@ function makeReservation() {
         return;
     }
     
-    // Create reservations table if not exists
+    // Create reservations table if not exists with pc_number column
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS reservations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             lab_number TEXT NOT NULL,
+            pc_number INTEGER,
             reservation_date DATE NOT NULL,
             start_time TIME NOT NULL,
             end_time TIME NOT NULL,
@@ -397,12 +482,19 @@ function makeReservation() {
         )
     ");
     
+    // Add pc_number column if it doesn't exist
+    try {
+        $pdo->exec("ALTER TABLE reservations ADD COLUMN pc_number INTEGER");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+    
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO reservations (user_id, lab_number, reservation_date, start_time, end_time, purpose)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO reservations (user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$_SESSION['user_id'], $lab, $date, $startTime, $endTime, $purpose]);
+        $stmt->execute([$_SESSION['user_id'], $lab, null, $date, $startTime, $endTime, $purpose]);
         
         echo json_encode(['success' => true, 'message' => 'Reservation submitted successfully']);
     } catch (PDOException $e) {
@@ -420,10 +512,21 @@ function cancelReservation() {
     }
     
     try {
+        // Get reservation details first
+        $stmt = $pdo->prepare("SELECT lab_number, pc_number FROM reservations WHERE id = ? AND user_id = ? AND status = 'pending'");
+        $stmt->execute([$reservationId, $_SESSION['user_id']]);
+        $reservation = $stmt->fetch();
+        
+        // Delete the reservation
         $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ? AND user_id = ? AND status = 'pending'");
         $stmt->execute([$reservationId, $_SESSION['user_id']]);
         
         if ($stmt->rowCount() > 0) {
+            // Release the PC status if PC was reserved
+            if ($reservation && $reservation['pc_number']) {
+                $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                $stmt->execute([$reservation['lab_number'], $reservation['pc_number']]);
+            }
             echo json_encode(['success' => true, 'message' => 'Reservation cancelled successfully']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Reservation not found or cannot be cancelled']);
@@ -495,6 +598,19 @@ function markNotificationRead() {
     }
 }
 
+function markAllNotificationsRead() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$_SESSION['user_id']]);
+        
+        echo json_encode(['success' => true, 'message' => 'All notifications marked as read']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
 function submitFeedback() {
     global $pdo;
     
@@ -513,6 +629,226 @@ function submitFeedback() {
         $stmt->execute([$_SESSION['user_id'], $sitinRecordId, $feedbackText, $rating]);
         
         echo json_encode(['success' => true, 'message' => 'Feedback submitted successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getLabPcStatus() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    
+    if (empty($lab)) {
+        echo json_encode(['success' => false, 'message' => 'Lab parameter is required']);
+        return;
+    }
+    
+    // Ensure lab_pc_status table exists and has data
+    try {
+        $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM lab_pc_status WHERE lab_number = ?");
+        $checkStmt->execute([$lab]);
+        if ($checkStmt->fetchColumn() == 0) {
+            // Initialize 56 PCs for this lab
+            for ($pc = 1; $pc <= 56; $pc++) {
+                $insertPc = $pdo->prepare("INSERT INTO lab_pc_status (lab_number, pc_number, status) VALUES (?, ?, 'available')");
+                $insertPc->execute([$lab, $pc]);
+            }
+        }
+    } catch (PDOException $e) {
+        // Table might not exist, create it
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS lab_pc_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lab_number TEXT NOT NULL,
+                pc_number INTEGER NOT NULL,
+                status TEXT DEFAULT 'available'
+            )");
+            // Initialize PCs
+            for ($pc = 1; $pc <= 56; $pc++) {
+                $insertPc = $pdo->prepare("INSERT INTO lab_pc_status (lab_number, pc_number, status) VALUES (?, ?, 'available')");
+                $insertPc->execute([$lab, $pc]);
+            }
+        } catch (PDOException $e2) {
+            echo json_encode(['success' => false, 'message' => 'Failed to initialize PC status: ' . $e2->getMessage()]);
+            return;
+        }
+    }
+    
+    // First, sync PC status based on current sit-in records and reservations
+    try {
+        syncPcStatusForLab($lab);
+    } catch (PDOException $e) {
+        // Continue even if sync fails - just use current DB status
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT pc_number, status 
+            FROM lab_pc_status 
+            WHERE lab_number = ?
+            ORDER BY pc_number
+        ");
+        $stmt->execute([$lab]);
+        $pcs = $stmt->fetchAll();
+        
+        echo json_encode(['success' => true, 'pcs' => $pcs]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function syncPcStatusForLab($lab) {
+    global $pdo;
+    
+    // Reset all PCs in this lab to available
+    $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ?");
+    $stmt->execute([$lab]);
+    
+    // Mark PCs as occupied that have current sit-ins
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT pc_number 
+        FROM sitin_records 
+        WHERE lab_number = ? AND time_out IS NULL AND pc_number IS NOT NULL
+    ");
+    $stmt->execute([$lab]);
+    $occupiedPcs = $stmt->fetchAll();
+    $occupiedPcNumbers = array_filter(array_map('intval', array_column($occupiedPcs, 'pc_number')));
+    
+    if (!empty($occupiedPcNumbers)) {
+        $placeholders = implode(',', array_fill(0, count($occupiedPcNumbers), '?'));
+        $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'occupied' WHERE lab_number = ? AND pc_number IN ($placeholders)");
+        $stmt->execute(array_merge([$lab], $occupiedPcNumbers));
+    }
+    
+    // Check if reservations table exists
+    try {
+        $tableCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='reservations'");
+        if ($tableCheck && $tableCheck->fetch()) {
+            // Mark PCs as reserved that have pending reservations for today
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT pc_number 
+                FROM reservations 
+                WHERE lab_number = ? AND status = 'pending' AND reservation_date = date('now')
+            ");
+            $stmt->execute([$lab]);
+            $reservedPcs = $stmt->fetchAll();
+            $reservedPcNumbers = array_filter(array_map('intval', array_column($reservedPcs, 'pc_number')));
+            
+            if (!empty($reservedPcNumbers)) {
+                $placeholders = implode(',', array_fill(0, count($reservedPcNumbers), '?'));
+                $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'reserved' WHERE lab_number = ? AND pc_number IN ($placeholders)");
+                $stmt->execute(array_merge([$lab], $reservedPcNumbers));
+            }
+        }
+    } catch (PDOException $e) {
+        // Reservations table might not exist, ignore
+    }
+}
+
+function syncPcStatus() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    
+    if (empty($lab)) {
+        echo json_encode(['success' => false, 'message' => 'Lab parameter is required']);
+        return;
+    }
+    
+    try {
+        syncPcStatusForLab($lab);
+        echo json_encode(['success' => true, 'message' => 'PC status synced']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function reservePc() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $lab = $input['lab'] ?? '';
+    $pcNumber = $input['pc_number'] ?? '';
+    $date = $input['date'] ?? '';
+    $startTime = $input['start_time'] ?? '';
+    $endTime = $input['end_time'] ?? '';
+    $purpose = $input['purpose'] ?? '';
+    
+    if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empty($endTime)) {
+        echo json_encode(['success' => false, 'message' => 'All fields including PC selection are required']);
+        return;
+    }
+    
+    // Check if PC is available
+    $checkStmt = $pdo->prepare("SELECT status FROM lab_pc_status WHERE lab_number = ? AND pc_number = ?");
+    $checkStmt->execute([$lab, $pcNumber]);
+    $pcStatus = $checkStmt->fetch();
+    
+    if (!$pcStatus || $pcStatus['status'] !== 'available') {
+        echo json_encode(['success' => false, 'message' => 'Selected PC is not available']);
+        return;
+    }
+    
+    // Create reservations table if not exists with pc_number column
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            lab_number TEXT NOT NULL,
+            pc_number INTEGER,
+            reservation_date DATE NOT NULL,
+            start_time TIME NOT NULL,
+            end_time TIME NOT NULL,
+            purpose TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ");
+    
+    // Add pc_number column if it doesn't exist (for existing tables)
+    try {
+        $pdo->exec("ALTER TABLE reservations ADD COLUMN pc_number INTEGER");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO reservations (user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$_SESSION['user_id'], $lab, $pcNumber, $date, $startTime, $endTime, $purpose]);
+        
+        // Update PC status to reserved
+        $updateStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'reserved' WHERE lab_number = ? AND pc_number = ?");
+        $updateStmt->execute([$lab, $pcNumber]);
+        
+        echo json_encode(['success' => true, 'message' => 'Reservation submitted successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function resetAllPasswords() {
+    global $pdo;
+    
+    // Check if admin
+    $stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
+    
+    if (!$user || $user['id_number'] !== '2664388') {
+        echo json_encode(['success' => false, 'message' => 'Admin access required']);
+        return;
+    }
+    
+    $newPassword = password_hash('123456', PASSWORD_DEFAULT);
+    
+    try {
+        $updateStmt = $pdo->prepare("UPDATE users SET password = ?");
+        $updateStmt->execute([$newPassword]);
+        
+        echo json_encode(['success' => true, 'message' => 'All passwords reset to 123456']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

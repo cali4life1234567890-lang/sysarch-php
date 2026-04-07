@@ -21,8 +21,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!empty($recordId)) {
         try {
+            // Get the sit-in record to get lab and pc info
+            $stmt = $pdo->prepare("SELECT lab_number, pc_number FROM sitin_records WHERE id = ?");
+            $stmt->execute([$recordId]);
+            $record = $stmt->fetch();
+            
+            // Update the sit-in record to set time_out
             $stmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ? AND time_out IS NULL");
             $stmt->execute([$recordId]);
+            
+            // If PC was assigned, release it
+            if ($record && $record['pc_number']) {
+                $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                $stmt->execute([$record['lab_number'], $record['pc_number']]);
+            }
         } catch (PDOException $e) {
             // Ignore errors
         }

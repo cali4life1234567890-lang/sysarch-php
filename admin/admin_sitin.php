@@ -37,9 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$user) {
                 $error = 'Student not found';
             } else {
+                // Ensure pc_number column exists in sitin_records
+                try {
+                    $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
+                } catch (PDOException $e) {
+                    // Column might already exist, ignore
+                }
+                
                 // Insert sit-in record
-                $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, purpose) VALUES (?, ?, ?)");
-                $insertStmt->execute([$user['id'], $lab, $purpose]);
+                $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose) VALUES (?, ?, ?, ?)");
+                $insertStmt->execute([$user['id'], $lab, null, $purpose]);
                 $message = 'Sit-In started successfully!';
             }
         } catch (PDOException $e) {
@@ -202,10 +209,7 @@ $selectedStudent = $_GET['student'] ?? '';
                             <td><?php echo htmlspecialchars($sitin['remaining_sessions']); ?></td>
                             <td><span class="status-badge status-active">Active</span></td>
                             <td>
-                                <form method="POST" action="admin_end_sitin.php" style="display:inline;">
-                                    <input type="hidden" name="record_id" value="<?php echo $sitin['id']; ?>">
-                                    <button type="submit" class="btn-small btn-danger">End</button>
-                                </form>
+                                <button class="btn-small btn-danger" onclick="endSitIn(<?php echo $sitin['id']; ?>)">End</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -263,6 +267,21 @@ $selectedStudent = $_GET['student'] ?? '';
             rows.forEach(function(row) {
                 tbody.appendChild(row);
             });
+        }
+
+        function endSitIn(recordId) {
+            if (!confirm('End this sit-in session?')) {
+                return;
+            }
+
+            fetch('admin_dashboard.php?action=end_sitin&record_id=' + recordId)
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        location.reload();
+                    }
+                });
         }
     </script>
     

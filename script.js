@@ -321,27 +321,12 @@ function populateProfileData() {
 }
 
 // Logout function
-async function logout() {
-    try {
-        const response = await fetch('/reg-log-prof/logout.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentUser = null;
-            
-            // Reload the page to reset PHP session state and show guest view
-            window.location.href = 'index.php';
-        }
-    } catch (error) {
-        console.error('Logout error:', error);
-    }
+function logout() {
+    window.location.href = 'reg-log-prof/logout.php';
 }
+
+// Make logout available globally
+window.logout = logout;
 
 // Delete account function
 async function deleteAccount() {

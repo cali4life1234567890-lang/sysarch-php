@@ -20,6 +20,7 @@ if (!$stmt->fetch()) {
 $id_number = $_POST['id_number'] ?? '';
 $purpose = $_POST['purpose'] ?? '';
 $lab = $_POST['lab'] ?? '';
+$pc_number = $_POST['pc_number'] ?? null;
 
 if (!$id_number || !$purpose || !$lab) {
     echo json_encode(['success' => false, 'message' => 'Missing required fields']);
@@ -51,9 +52,16 @@ try {
         exit;
     }
     
+    // Ensure pc_number column exists in sitin_records
+    try {
+        $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+    
     // Insert sit-in record
-    $stmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, purpose, time_in) VALUES (?, ?, ?, datetime('now'))");
-    $stmt->execute([$userId, $lab, $purpose]);
+    $stmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, time_in) VALUES (?, ?, ?, ?, datetime('now'))");
+    $stmt->execute([$userId, $lab, $pc_number, $purpose]);
     
     // Decrement remaining sessions
     $newSessions = $remainingSessions - 1;
@@ -64,6 +72,12 @@ try {
     } else {
         $stmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, ?)");
         $stmt->execute([$userId, $newSessions]);
+    }
+    
+    // Update PC status to occupied if PC number is provided
+    if ($pc_number) {
+        $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'occupied' WHERE lab_number = ? AND pc_number = ?");
+        $stmt->execute([$lab, $pc_number]);
     }
 
     echo json_encode(['success' => true]);

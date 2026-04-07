@@ -79,7 +79,7 @@ $userJson = json_encode($currentUser);
         <a href="#" onclick="showSection('admin-reports')">Sit-In Reports</a>
         <a href="#" onclick="showSection('admin-feedback')">Feedback</a>
         <a href="#" onclick="showSection('admin-reservations')">Reservations</a>
-        <a href="#" onclick="logout()">Logout</a>
+        <a href="#" onclick="logout(); return false;">Logout</a>
       </div>
     </nav>
 
@@ -254,6 +254,7 @@ $userJson = json_encode($currentUser);
               <th>ID</th>
               <th>Student</th>
               <th>Lab</th>
+              <th>PC</th>
               <th>Date</th>
               <th>Time</th>
               <th>Status</th>
@@ -430,8 +431,25 @@ $userJson = json_encode($currentUser);
               <input type="text" id="prof-address" class="profile-input" value="<?php echo htmlspecialchars($currentUser['address'] ?? ''); ?>" />
             </div>
 
+            <div class="info-row" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+              <span class="label" style="font-weight: bold; color: #007bff;">CHANGE PASSWORD</span>
+            </div>
+            <div class="info-row">
+              <span class="label">OLD PASSWORD:</span>
+              <input type="password" id="prof-old-password" class="profile-input" placeholder="Enter current password" />
+            </div>
+            <div class="info-row">
+              <span class="label">NEW PASSWORD:</span>
+              <input type="password" id="prof-new-password" class="profile-input" placeholder="Enter new password" />
+            </div>
+            <div class="info-row">
+              <span class="label">CONFIRM PASSWORD:</span>
+              <input type="password" id="prof-confirm-password" class="profile-input" placeholder="Confirm new password" />
+            </div>
+
             <div class="profile-footer">
               <button class="edit-btn" onclick="updateProfile()">Save Changes</button>
+              <button class="edit-btn" style="background: #28a745; margin-left: 10px;" onclick="changePassword()">Change Password</button>
             </div>
           </div>
         </div>
@@ -828,6 +846,9 @@ $userJson = json_encode($currentUser);
         loadNavNotifications();
         loadAnnouncements();
         loadUserProfilePicture();
+        
+        // Poll for new notifications every 30 seconds
+        setInterval(loadNavNotifications, 30000);
       }
 
       // Load user profile picture from localStorage
@@ -874,7 +895,19 @@ $userJson = json_encode($currentUser);
         event.stopPropagation();
         const dropdown = document.getElementById('nav-notification-content');
         if (dropdown) {
+          const isShowing = dropdown.classList.contains('show');
           dropdown.classList.toggle('show');
+          
+          // Mark all notifications as read when dropdown opens
+          if (!isShowing) {
+            // Immediately hide badge for better UX
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.style.display = 'none';
+            }
+            // Then send request to mark as read
+            markAllNotificationsRead();
+          }
         }
         // Close other dropdowns
         const otherDropdown = document.getElementById('user-notification-content');
@@ -1184,7 +1217,7 @@ $userJson = json_encode($currentUser);
         if (!tbody) return;
         
         if (reservations.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7">No reservations found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8">No reservations found</td></tr>';
           return;
         }
         
@@ -1193,6 +1226,7 @@ $userJson = json_encode($currentUser);
           const canCancel = res.status === 'pending';
           html += `<tr>
             <td>${res.lab_number}</td>
+            <td>${res.pc_number || 'N/A'}</td>
             <td>${res.reservation_date}</td>
             <td>${res.start_time}</td>
             <td>${res.end_time}</td>
@@ -1321,6 +1355,46 @@ $userJson = json_encode($currentUser);
         });
       }
 
+      // Change password
+      function changePassword() {
+        const oldPassword = document.getElementById('prof-old-password').value;
+        const newPassword = document.getElementById('prof-new-password').value;
+        const confirmPassword = document.getElementById('prof-confirm-password').value;
+
+        if (!oldPassword || !newPassword || !confirmPassword) {
+          alert('All password fields are required');
+          return;
+        }
+
+        fetch('users/user_dashboard.php?action=change_password', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            old_password: oldPassword,
+            new_password: newPassword,
+            confirm_password: confirmPassword
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          const msgBox = document.getElementById('profile-message');
+          if (data.success) {
+            msgBox.className = 'message-box success';
+            msgBox.textContent = data.message;
+            // Clear password fields
+            document.getElementById('prof-old-password').value = '';
+            document.getElementById('prof-new-password').value = '';
+            document.getElementById('prof-confirm-password').value = '';
+          } else {
+            msgBox.className = 'message-box error';
+            msgBox.textContent = data.message;
+          }
+        })
+        .catch(error => {
+          console.error('[Change Password] Error:', error);
+        });
+      }
+
       // ============================================
       // NOTIFICATION FUNCTIONS
       // ============================================
@@ -1330,69 +1404,36 @@ $userJson = json_encode($currentUser);
         const dropdown = document.getElementById('notification-content');
         dropdown.classList.toggle('show');
         loadNotifications();
-      }
-
-      // Load notifications
-      function loadNotifications() {
-        fetch('user_dashboard.php?action=notifications')
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              displayNotifications(data.notifications, data.unread_count);
-            }
-          });
-      }
-
-      // Display notifications
-      function displayNotifications(notifications, unreadCount) {
-        const badge = document.getElementById('notification-badge');
-        const list = document.getElementById('notification-list');
         
-        badge.textContent = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'block' : 'none';
-
-        if (notifications.length === 0) {
-          list.innerHTML = '<p class="no-notifications">No notifications</p>';
-          return;
+        // Mark all as read when dropdown opens
+        if (dropdown.classList.contains('show')) {
+          // Immediately hide badge for better UX
+          const navBadge = document.getElementById('nav-notification-badge');
+          if (navBadge) {
+            navBadge.style.display = 'none';
+          }
+          markAllNotificationsRead();
         }
-
-        let html = '';
-        notifications.forEach(notif => {
-          const icon = notif.type === 'success' ? '✓' : notif.type === 'error' ? '✕' : 'ℹ';
-          html += `<div class="notification-item ${notif.is_read ? '' : 'unread'}" onclick="markNotificationRead(${notif.id})">
-            <span class="notif-icon">${icon}</span>
-            <div class="notif-content">
-              <strong>${notif.title}</strong>
-              <p>${notif.message || ''}</p>
-              <small>${notif.created_at}</small>
-            </div>
-          </div>`;
-        });
-        list.innerHTML = html;
       }
 
-      // Mark notification as read
-      function markNotificationRead(id) {
-        fetch(`user_dashboard.php?action=mark_notification_read&id=${id}`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'}
+// Mark all notifications as read
+      function markAllNotificationsRead() {
+        fetch('user_dashboard.php?action=mark_all_notifications_read', {
+          method: 'POST'
         })
         .then(res => res.json())
         .then(data => {
+          console.log('Mark all read response:', data);
           if (data.success) {
-            loadNotifications();
+            // Update badge
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.textContent = '0';
+              navBadge.style.display = 'none';
+            }
           }
-        });
-      }
-
-      // Mark all notifications as read
-      function markAllNotificationsRead() {
-        const list = document.getElementById('notification-list');
-        const items = list.querySelectorAll('.notification-item.unread');
-        items.forEach(item => {
-          const id = item.getAttribute('onclick').match(/\d+/)[0];
-          markNotificationRead(id);
-        });
+        })
+        .catch(err => console.error('Error marking notifications read:', err));
       }
 
       // Close dropdowns when clicking outside

@@ -66,6 +66,16 @@ if (!$userSession) {
 }
 
 $userJson = json_encode($currentUser);
+
+// Check if user has an active sit-in
+$sitinCheckStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
+$sitinCheckStmt->execute([$_SESSION['user_id']]);
+$hasActiveSitIn = $sitinCheckStmt->fetch() !== false;
+
+// Check if user has a pending reservation
+$reservationCheckStmt = $pdo->prepare("SELECT id FROM reservations WHERE user_id = ? AND status = 'pending'");
+$reservationCheckStmt->execute([$_SESSION['user_id']]);
+$hasPendingReservation = $reservationCheckStmt->fetch() !== false;
 ?>
 <!doctype html>
 <html lang="en">
@@ -81,6 +91,8 @@ $userJson = json_encode($currentUser);
         currentUser = phpUser;
       }
       let remainingSessions = <?php echo $remainingSessions; ?>;
+      let hasActiveSitIn = <?php echo $hasActiveSitIn ? 'true' : 'false'; ?>;
+      let hasPendingReservation = <?php echo $hasPendingReservation ? 'true' : 'false'; ?>;
     </script>
     <style>
       .reservation-page {
@@ -170,11 +182,269 @@ $userJson = json_encode($currentUser);
         font-weight: bold;
         color: #007bff;
       }
+      .alert-message {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        color: #333;
+        font-size: 16px;
+        border: 1px solid #ddd;
+      }
       .info-display {
         background: #f8f9fa;
         padding: 10px;
         border-radius: 4px;
         margin-bottom: 15px;
+      }
+      .pc-grid-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+      }
+      .pc-grid-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #333;
+      }
+      .pc-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .pc-item {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+      }
+      .pc-item.available {
+        background: #28a745;
+        color: white;
+      }
+      .pc-item.available:hover {
+        background: #218838;
+        transform: scale(1.05);
+      }
+      .pc-item.occupied {
+        background: #dc3545;
+        color: white;
+        cursor: not-allowed;
+      }
+      .pc-item.reserved {
+        background: #ffc107;
+        color: #333;
+        cursor: not-allowed;
+      }
+      .pc-item.selected {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0,123,255,0.3);
+      }
+      .pc-legend {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 15px;
+        font-size: 14px;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+      }
+      .legend-color.available {
+        background: #28a745;
+      }
+      .legend-color.occupied {
+        background: #dc3545;
+      }
+      .legend-color.reserved {
+        background: #ffc107;
+      }
+      .legend-item span {
+        color: #333;
+      }
+      .pc-details {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+      }
+      .pc-details p {
+        margin: 5px 0;
+        color: #333;
+      }
+      .selected-pc-info {
+        background: #e7f3ff;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        text-align: center;
+        font-weight: bold;
+        color: #007bff;
+      }
+      .pc-select-btn {
+        padding: 8px 16px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .pc-select-btn:hover {
+        background: #0056b3;
+      }
+      .pc-select-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      /* Modal Styles */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+      .modal-overlay.active {
+        display: flex;
+      }
+      .modal-content {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ddd;
+      }
+      .modal-header h3 {
+        margin: 0;
+        color: #333;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+      }
+      .modal-close:hover {
+        color: #333;
+      }
+      .pc-grid-modal {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .pc-item-modal {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        width: 50px;
+        height: 50px;
+      }
+      .pc-item-modal.available {
+        background: #28a745;
+        color: white;
+      }
+      .pc-item-modal.available:hover {
+        background: #218838;
+        transform: scale(1.05);
+      }
+      .pc-item-modal.occupied {
+        background: #dc3545;
+        color: white;
+        cursor: not-allowed;
+      }
+      .pc-item-modal.reserved {
+        background: #ffc107;
+        color: #333;
+        cursor: not-allowed;
+      }
+      .pc-item-modal.selected {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+      }
+      .pc-legend-modal {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 15px;
+        font-size: 14px;
+        color: #333;
+      }
+      .legend-item-modal {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #333;
+      }
+      .modal-footer {
+        margin-top: 20px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      .modal-cancel {
+        padding: 10px 20px;
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .modal-confirm {
+        padding: 10px 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .modal-confirm:disabled {
+        background: #ccc;
+        cursor: not-allowed;
       }
     </style>
   </head>
@@ -225,8 +495,11 @@ $userJson = json_encode($currentUser);
           <span class="label">Name:</span>
           <span class="user-name"><?php echo htmlspecialchars($currentUser['name']); ?></span>
         </div>
+      </div>
+      
       <!-- Sit-In Form Section -->
-      <div class="form-section">
+      <div class="form-section" id="sitin-section">
+        <h2>Instant Sit-In</h2>
         <form id="sitin-form" onsubmit="submitSitIn(event)">
           <div class="form-row">
             <div class="form-group">
@@ -235,7 +508,7 @@ $userJson = json_encode($currentUser);
             </div>
             <div class="form-group">
               <label for="sitin-lab">Laboratory:</label>
-              <select id="sitin-lab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
+              <select id="sitin-lab" onchange="handleSitInLabChange()" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
                 <option value="">Select Laboratory</option>
                 <option value="524">Lab 524</option>
                 <option value="526">Lab 526</option>
@@ -245,14 +518,48 @@ $userJson = json_encode($currentUser);
               </select>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Select PC:</label>
+              <button type="button" id="sitin-select-pc-btn" class="pc-select-btn" onclick="openSitInPcModal()">Select a PC</button>
+              <div class="selected-pc-info" id="sitin-selected-pc-info"></div>
+            </div>
+          </div>
           <button type="submit" class="btn-primary">Submit</button>
         </form>
         <div class="sessions-display">
           <div>Remaining Sessions</div>
           <div class="sessions-count" id="remaining-sessions"><?php echo $remainingSessions; ?></div>
         </div>
+      </div>
 
-        <form id="reservation-form" onsubmit="submitReservation(event)">
+      <!-- Reservation Section with PC Grid -->
+      <div class="form-section" id="reservation-section">
+        <h2>Make a Reservation</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reservation-lab-select">Select Laboratory:</label>
+              <select id="reservation-lab-select" onchange="handleLabChange()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
+                <option value="">Select Laboratory</option>
+                <option value="524">Lab 524</option>
+                <option value="526">Lab 526</option>
+                <option value="528">Lab 528</option>
+                <option value="530">Lab 530</option>
+                <option value="MAC">MAC Lab</option>
+              </select>
+            </div>
+          </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Select PC:</label>
+            <button type="button" id="select-pc-btn" class="pc-select-btn" onclick="openPcModal()">Select a PC</button>
+            <div class="selected-pc-info" id="selected-pc-info"></div>
+          </div>
+        </div>
+
+        <form id="reservation-form" onsubmit="submitReservation(event)" style="margin-top: 20px;">
+          <input type="hidden" id="reservation-lab" />
           <div class="form-row">
             <div class="form-group">
               <label for="reservation-time">Time In:</label>
@@ -265,17 +572,6 @@ $userJson = json_encode($currentUser);
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="reservation-lab">Laboratory:</label>
-              <select id="reservation-lab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
-                <option value="">Select Laboratory</option>
-                <option value="524">Lab 524</option>
-                <option value="526">Lab 526</option>
-                <option value="528">Lab 528</option>
-                <option value="530">Lab 530</option>
-                <option value="MAC">MAC Lab</option>
-              </select>
-            </div>
-            <div class="form-group">
               <label for="reservation-purpose">Purpose:</label>
               <input type="text" id="reservation-purpose" placeholder="Enter purpose" required />
             </div>
@@ -285,17 +581,109 @@ $userJson = json_encode($currentUser);
       </div>
     </div>
 
-    <script>
+    <!-- PC Selection Modal -->
+    <div class="modal-overlay" id="pc-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Select a PC - <span id="modal-lab-name"></span></h3>
+          <button class="modal-close" onclick="closePcModal()">&times;</button>
+        </div>
+        <div id="modal-pc-grid" class="pc-grid-modal">
+          <p>Select a laboratory first</p>
+        </div>
+        <div class="pc-legend-modal">
+          <div class="legend-item-modal">
+            <div class="legend-color available" style="width: 20px; height: 20px; border-radius: 4px; background: #28a745;"></div>
+            <span style="color: #333;">Available</span>
+          </div>
+          <div class="legend-item-modal">
+            <div class="legend-color occupied" style="width: 20px; height: 20px; border-radius: 4px; background: #dc3545;"></div>
+            <span style="color: #333;">Unavailable</span>
+          </div>
+          <div class="legend-item-modal">
+            <div class="legend-color reserved" style="width: 20px; height: 20px; border-radius: 4px; background: #ffc107;"></div>
+            <span style="color: #333;">Reserved</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel" onclick="closePcModal()">Cancel</button>
+          <button type="button" class="modal-confirm" id="modal-confirm-btn" onclick="confirmPcSelection()" disabled>Confirm Selection</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sit-In PC Selection Modal -->
+    <div class="modal-overlay" id="sitin-pc-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Select a PC - <span id="sitin-modal-lab-name"></span></h3>
+          <button class="modal-close" onclick="closeSitInPcModal()">&times;</button>
+        </div>
+        <div id="sitin-modal-pc-grid" class="pc-grid-modal">
+          <p>Select a laboratory first</p>
+        </div>
+        <div class="pc-legend-modal">
+          <div class="legend-item-modal">
+            <div class="legend-color available" style="width: 20px; height: 20px; border-radius: 4px; background: #28a745;"></div>
+            <span style="color: #333;">Available</span>
+          </div>
+          <div class="legend-item-modal">
+            <div class="legend-color occupied" style="width: 20px; height: 20px; border-radius: 4px; background: #dc3545;"></div>
+            <span style="color: #333;">Unavailable</span>
+          </div>
+          <div class="legend-item-modal">
+            <div class="legend-color reserved" style="width: 20px; height: 20px; border-radius: 4px; background: #ffc107;"></div>
+            <span style="color: #333;">Reserved</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel" onclick="closeSitInPcModal()">Cancel</button>
+          <button type="button" class="modal-confirm" id="sitin-modal-confirm-btn" onclick="confirmSitInPcSelection()" disabled>Confirm Selection</button>
+        </div>
+      </div>
+    </div>
+
+<script>
       // Initialize on page load
       document.addEventListener('DOMContentLoaded', function() {
         loadNavNotifications();
         loadUserReservations();
         loadRemainingSessions();
         
+        // Poll for new notifications every 30 seconds
+        setInterval(loadNavNotifications, 30000);
+        
         // Set minimum date to today
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('reservation-date').setAttribute('min', today);
+
+        // Set current time as default for reservation time
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        document.getElementById('reservation-time').value = hours + ':' + minutes;
+
+        // Disable PC select buttons initially
+        document.getElementById('select-pc-btn').disabled = true;
+        document.getElementById('sitin-select-pc-btn').disabled = true;
+
+        // Apply restrictions based on current status
+        applyRestrictions();
       });
+
+      function applyRestrictions() {
+        // If user has active sit-in, disable instant sit-in
+        if (hasActiveSitIn) {
+          const sitinSection = document.getElementById('sitin-section');
+          sitinSection.innerHTML = '<div class="alert-message">You currently have an active sit-in. Please end it before starting a new one.</div>';
+        }
+
+        // If user has pending reservation, disable reservation form
+        if (hasPendingReservation) {
+          const reservationSection = document.getElementById('reservation-section');
+          reservationSection.innerHTML = '<div class="alert-message">You already have a pending reservation. Please wait for it to be completed or cancelled before making another.</div>';
+        }
+      }
 
       // Load remaining sessions
       function loadRemainingSessions() {
@@ -306,7 +694,8 @@ $userJson = json_encode($currentUser);
               remainingSessions = data.remaining_sessions;
               document.getElementById('remaining-sessions').textContent = remainingSessions;
             }
-          });
+          })
+          .catch(err => console.error('Error loading sessions:', err));
       }
 
       // Load notifications for navigation dropdown
@@ -322,7 +711,8 @@ $userJson = json_encode($currentUser);
                 navBadge.style.display = data.unread_count > 0 ? 'inline-block' : 'none';
               }
             }
-          });
+          })
+          .catch(err => console.error('Error loading notifications:', err));
       }
 
       // Toggle navigation notification dropdown
@@ -331,8 +721,40 @@ $userJson = json_encode($currentUser);
         event.stopPropagation();
         const dropdown = document.getElementById('nav-notification-content');
         if (dropdown) {
+          const isShowing = dropdown.classList.contains('show');
           dropdown.classList.toggle('show');
+          
+          // Mark all notifications as read when dropdown opens
+          if (!isShowing) {
+            // Immediately hide badge for better UX
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.style.display = 'none';
+            }
+            // Then send request to mark as read
+            markAllNotificationsRead();
+          }
         }
+      }
+
+      // Mark all notifications as read
+      function markAllNotificationsRead() {
+        fetch('user_dashboard.php?action=mark_all_notifications_read', {
+          method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log('Mark all read response:', data);
+          if (data.success) {
+            // Hide the badge
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.textContent = '0';
+              navBadge.style.display = 'none';
+            }
+          }
+        })
+        .catch(err => console.error('Error marking notifications read:', err));
       }
 
       // Display notifications in navigation dropdown
@@ -374,6 +796,16 @@ $userJson = json_encode($currentUser);
         if (navDropdown && navLink && !navDropdown.contains(event.target) && !navLink.contains(event.target)) {
           navDropdown.classList.remove('show');
         }
+
+        // Close modals when clicking outside
+        const pcModal = document.getElementById('pc-modal');
+        const sitinPcModal = document.getElementById('sitin-pc-modal');
+        if (pcModal && !pcModal.contains(event.target) && event.target.classList.contains('modal-overlay')) {
+          pcModal.classList.remove('active');
+        }
+        if (sitinPcModal && !sitinPcModal.contains(event.target) && event.target.classList.contains('modal-overlay')) {
+          sitinPcModal.classList.remove('active');
+        }
       });
 
       // Submit Sit-In
@@ -382,6 +814,7 @@ $userJson = json_encode($currentUser);
         
         const purpose = document.getElementById('sitin-purpose').value;
         const lab = document.getElementById('sitin-lab').value;
+        const pcNumber = sitInSelectedPc;
 
         if (!purpose || !lab) {
           alert('Please fill in all fields');
@@ -393,7 +826,8 @@ $userJson = json_encode($currentUser);
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             lab: lab,
-            purpose: purpose
+            purpose: purpose,
+            pc_number: pcNumber
           })
         })
         .then(res => res.json())
@@ -401,18 +835,274 @@ $userJson = json_encode($currentUser);
           alert(data.message);
           if (data.success) {
             document.getElementById('sitin-form').reset();
+            sitInSelectedPc = null;
+            document.getElementById('sitin-selected-pc-info').textContent = '';
+            document.getElementById('sitin-select-pc-btn').textContent = 'Select a PC';
             loadRemainingSessions();
+            
+            // Update the active sit-in flag and apply restrictions
+            hasActiveSitIn = true;
+            applyRestrictions();
           }
         });
+      }
+
+      // Sit-In PC Modal Functions
+      function handleSitInLabChange() {
+        const labSelect = document.getElementById('sitin-lab');
+        const lab = labSelect.value;
+        const btn = document.getElementById('sitin-select-pc-btn');
+        
+        if (!lab) {
+          sitInSelectedPc = null;
+          document.getElementById('sitin-selected-pc-info').textContent = '';
+          btn.disabled = true;
+          return;
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Select a PC';
+        sitInSelectedPc = null;
+        document.getElementById('sitin-selected-pc-info').textContent = '';
+      }
+
+      function openSitInPcModal() {
+        const lab = document.getElementById('sitin-lab').value;
+        if (!lab) {
+          alert('Please select a laboratory first');
+          return;
+        }
+
+        const modal = document.getElementById('sitin-pc-modal');
+        const labName = document.getElementById('sitin-modal-lab-name');
+        const pcGrid = document.getElementById('sitin-modal-pc-grid');
+        
+        labName.textContent = 'Lab ' + lab;
+        pcGrid.innerHTML = '<p>Loading...</p>';
+        modal.classList.add('active');
+
+        fetch('user_dashboard.php?action=get_lab_pc_status&lab=' + lab)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              renderSitInModalPcGrid(data.pcs);
+            } else {
+              pcGrid.innerHTML = '<p>Error: ' + (data.message || 'Unknown error') + '</p>';
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            pcGrid.innerHTML = '<p>Error loading PC status. Please try again.</p>';
+          });
+      }
+
+      function closeSitInPcModal() {
+        document.getElementById('sitin-pc-modal').classList.remove('active');
+      }
+
+      function renderSitInModalPcGrid(pcs) {
+        const grid = document.getElementById('sitin-modal-pc-grid');
+        grid.innerHTML = '';
+
+        pcs.forEach(pc => {
+          const pcDiv = document.createElement('div');
+          pcDiv.className = 'pc-item-modal ' + pc.status;
+          pcDiv.textContent = pc.pc_number;
+          pcDiv.dataset.pcNumber = pc.pc_number;
+          
+          if (pc.status === 'available') {
+            pcDiv.onclick = () => selectSitInPcInModal(pc.pc_number);
+          }
+          
+          grid.appendChild(pcDiv);
+        });
+      }
+
+      function selectSitInPcInModal(pcNumber) {
+        document.querySelectorAll('#sitin-modal-pc-grid .pc-item-modal').forEach(el => el.classList.remove('selected'));
+        
+        const pcElements = document.querySelectorAll('#sitin-modal-pc-grid .pc-item-modal');
+        pcElements.forEach(el => {
+          if (el.dataset.pcNumber == pcNumber) {
+            el.classList.add('selected');
+          }
+        });
+
+        sitInSelectedPc = pcNumber;
+        document.getElementById('sitin-modal-confirm-btn').disabled = false;
+      }
+
+      function confirmSitInPcSelection() {
+        if (!sitInSelectedPc) {
+          alert('Please select a PC');
+          return;
+        }
+
+        document.getElementById('sitin-selected-pc-info').textContent = 'Selected PC: ' + sitInSelectedPc;
+        document.getElementById('sitin-select-pc-btn').textContent = 'Change PC (' + sitInSelectedPc + ')';
+        closeSitInPcModal();
       }
 
       // Submit Reservation
       function submitReservation(event) {
         event.preventDefault();
         
-        // This feature is coming soon
-        console.log('Reserve button clicked');
-        alert('This feature is coming soon!');
+        const lab = document.getElementById('reservation-lab').value;
+        const date = document.getElementById('reservation-date').value;
+        const startTime = document.getElementById('reservation-time').value;
+        const purpose = document.getElementById('reservation-purpose').value;
+        const pcNumber = selectedPc;
+
+        if (!lab || !date || !startTime || !purpose) {
+          alert('Please fill in all fields');
+          return;
+        }
+
+        if (!pcNumber) {
+          alert('Please select a PC from the grid');
+          return;
+        }
+
+        const endTime = calculateEndTime(startTime, 2);
+
+        fetch('user_dashboard.php?action=reserve_pc', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            lab: lab,
+            pc_number: pcNumber,
+            date: date,
+            start_time: startTime,
+            end_time: endTime,
+            purpose: purpose
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+          if (data.success) {
+            document.getElementById('reservation-form').reset();
+            selectedPc = null;
+            document.getElementById('selected-pc-info').textContent = '';
+            document.getElementById('select-pc-btn').textContent = 'Select a PC';
+            // Also reset the lab select
+            document.getElementById('reservation-lab-select').value = '';
+            document.getElementById('reservation-lab').value = '';
+            document.getElementById('select-pc-btn').disabled = true;
+            
+            // Update the pending reservation flag and apply restrictions
+            hasPendingReservation = true;
+            applyRestrictions();
+          }
+        });
+      }
+
+      let selectedPc = null;
+      let sitInSelectedPc = null;
+
+      function calculateEndTime(startTime, hoursToAdd) {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        date.setHours(date.getHours() + hoursToAdd);
+        return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+      }
+
+      function handleLabChange() {
+        const labSelect = document.getElementById('reservation-lab-select');
+        const lab = labSelect.value;
+        const btn = document.getElementById('select-pc-btn');
+        
+        if (!lab) {
+          selectedPc = null;
+          document.getElementById('selected-pc-info').textContent = '';
+          document.getElementById('reservation-lab').value = '';
+          btn.disabled = true;
+          return;
+        }
+
+        document.getElementById('reservation-lab').value = lab;
+        btn.disabled = false;
+        btn.textContent = 'Select a PC';
+        selectedPc = null;
+        document.getElementById('selected-pc-info').textContent = '';
+      }
+
+      function openPcModal() {
+        const lab = document.getElementById('reservation-lab-select').value;
+        if (!lab) {
+          alert('Please select a laboratory first');
+          return;
+        }
+
+        const modal = document.getElementById('pc-modal');
+        const labName = document.getElementById('modal-lab-name');
+        const pcGrid = document.getElementById('modal-pc-grid');
+        
+        labName.textContent = 'Lab ' + lab;
+        pcGrid.innerHTML = '<p>Loading...</p>';
+        modal.classList.add('active');
+
+        fetch('user_dashboard.php?action=get_lab_pc_status&lab=' + lab)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              renderModalPcGrid(data.pcs);
+            } else {
+              pcGrid.innerHTML = '<p>Error: ' + (data.message || 'Unknown error') + '</p>';
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            pcGrid.innerHTML = '<p>Error loading PC status. Please try again.</p>';
+          });
+      }
+
+      function closePcModal() {
+        document.getElementById('pc-modal').classList.remove('active');
+      }
+
+      function renderModalPcGrid(pcs) {
+        const grid = document.getElementById('modal-pc-grid');
+        grid.innerHTML = '';
+
+        pcs.forEach(pc => {
+          const pcDiv = document.createElement('div');
+          pcDiv.className = 'pc-item-modal ' + pc.status;
+          pcDiv.textContent = pc.pc_number;
+          pcDiv.dataset.pcNumber = pc.pc_number;
+          
+          if (pc.status === 'available') {
+            pcDiv.onclick = () => selectPcInModal(pc.pc_number);
+          }
+          
+          grid.appendChild(pcDiv);
+        });
+      }
+
+      function selectPcInModal(pcNumber) {
+        document.querySelectorAll('.pc-item-modal').forEach(el => el.classList.remove('selected'));
+        
+        const pcElements = document.querySelectorAll('.pc-item-modal');
+        pcElements.forEach(el => {
+          if (el.dataset.pcNumber == pcNumber) {
+            el.classList.add('selected');
+          }
+        });
+
+        selectedPc = pcNumber;
+        document.getElementById('modal-confirm-btn').disabled = false;
+      }
+
+      function confirmPcSelection() {
+        if (!selectedPc) {
+          alert('Please select a PC');
+          return;
+        }
+
+        document.getElementById('selected-pc-info').textContent = 'Selected PC: ' + selectedPc;
+        document.getElementById('select-pc-btn').textContent = 'Change PC (' + selectedPc + ')';
+        closePcModal();
       }
 
       // Load user reservations
@@ -441,6 +1131,7 @@ $userJson = json_encode($currentUser);
           const canCancel = res.status === 'pending';
           html += `<tr>
             <td>${res.lab_number}</td>
+            <td>${res.pc_number || 'N/A'}</td>
             <td>${res.reservation_date}</td>
             <td>${res.start_time}</td>
             <td>${res.purpose || 'N/A'}</td>
