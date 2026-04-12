@@ -93,18 +93,14 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       let remainingSessions = <?php echo $remainingSessions; ?>;
       let hasActiveSitIn = <?php echo $hasActiveSitIn ? 'true' : 'false'; ?>;
       let hasPendingReservation = <?php echo $hasPendingReservation ? 'true' : 'false'; ?>;
+      let activeSitInData = null;
     </script>
     <style>
       .reservation-page {
         padding: 20px;
         max-width: 1200px;
         margin: 0 auto;
-      }
-      .reservation-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
+        position: relative;
       }
       .back-link {
         color: #007bff;
@@ -311,10 +307,68 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       .pc-select-btn:hover {
         background: #0056b3;
       }
-      .pc-select-btn:disabled {
+.pc-select-btn:disabled {
         background: #ccc;
         cursor: not-allowed;
       }
+
+      .tab-btn {
+        padding: 12px 20px;
+        background: #f8f9fa;
+        border: none;
+        border-radius: 5px 5px 0 0;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #6c757d;
+        transition: all 0.2s ease;
+        border-top: 3px solid transparent;
+      }
+      .tab-btn:hover {
+        background: #e9ecef;
+        color: #495057;
+      }
+      .tab-btn.active {
+        background: #007bff;
+        color: white;
+        border-top: 3px solid #0056b3;
+        box-shadow: 0 -2px 5px rgba(0, 123, 255, 0.2);
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+      }
+      .log-table th, .log-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+      }
+      .log-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+      }
+      .log-table tr:hover {
+        background: #f8f9fa;
+      }
+      .status-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .status-pending { background: #fff3cd; color: #856404; }
+      .status-approved { background: #d4edda; color: #155724; }
+      .status-active { background: #cce5ff; color: #004085; }
+      .status-denied { background: #f8d7da; color: #721c24; }
+      .status-completed { background: #e2e3e5; color: #383d41; }
 
       /* Modal Styles */
       .modal-overlay {
@@ -337,7 +391,7 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         border-radius: 10px;
         padding: 20px;
         max-width: 600px;
-        width: 90%;
+        width: 95%;
         max-height: 80vh;
         overflow-y: auto;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -346,51 +400,52 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ddd;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #dee2e6;
       }
       .modal-header h3 {
         margin: 0;
         color: #333;
+        font-size: 16px;
       }
       .modal-close {
         background: none;
         border: none;
-        font-size: 24px;
-        cursor: pointer;
+        font-size: 20px;
         color: #666;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
       }
       .modal-close:hover {
         color: #333;
       }
       .pc-grid-modal {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 10px;
-        margin-bottom: 20px;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 4px;
+        margin-bottom: 10px;
       }
       .pc-item-modal {
         aspect-ratio: 1;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
+        border-radius: 5px;
         font-weight: bold;
-        font-size: 12px;
+        font-size: 14px;
         cursor: pointer;
         transition: all 0.2s ease;
         border: 2px solid transparent;
-        width: 50px;
-        height: 50px;
+        padding: 4px;
+        min-width: 45px;
+        min-height: 45px;
       }
       .pc-item-modal.available {
         background: #28a745;
         color: white;
-      }
-      .pc-item-modal.available:hover {
-        background: #218838;
-        transform: scale(1.05);
+        font-size: 11px;
       }
       .pc-item-modal.occupied {
         background: #dc3545;
@@ -404,47 +459,157 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       }
       .pc-item-modal.selected {
         border-color: #007bff;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
       }
       .pc-legend-modal {
         display: flex;
+        gap: 15px;
         justify-content: center;
-        gap: 20px;
-        margin-top: 15px;
-        font-size: 14px;
-        color: #333;
+        margin-bottom: 10px;
+        font-size: 12px;
       }
       .legend-item-modal {
         display: flex;
         align-items: center;
-        gap: 5px;
-        color: #333;
+        gap: 4px;
+        font-size: 11px;
+      }
+      .legend-color-modal {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
       }
       .modal-footer {
-        margin-top: 20px;
         display: flex;
+        gap: 8px;
         justify-content: flex-end;
-        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #dee2e6;
       }
       .modal-cancel {
-        padding: 10px 20px;
+        padding: 6px 12px;
         background: #6c757d;
         color: white;
         border: none;
         border-radius: 4px;
         cursor: pointer;
+        font-size: 12px;
+      }
+      .modal-cancel:hover {
+        background: #5a6268;
       }
       .modal-confirm {
-        padding: 10px 20px;
+        padding: 6px 12px;
         background: #007bff;
         color: white;
         border: none;
         border-radius: 4px;
         cursor: pointer;
+        font-size: 12px;
+      }
+      .modal-confirm:hover {
+        background: #0056b3;
       }
       .modal-confirm:disabled {
         background: #ccc;
         cursor: not-allowed;
+      }
+
+      /* Floating Action Button Timer */
+      .timer-fab {
+        position: fixed;
+        bottom: 80px;
+        right: 30px;
+        background: #007bff;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .timer-fab.active {
+        display: flex;
+      }
+      .timer-fab.expiring {
+        background: #dc3545;
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        animation: pulse 1s infinite;
+      }
+      .timer-fab-label {
+        font-size: 12px;
+        font-weight: normal;
+        opacity: 0.9;
+      }
+      .timer-fab-time {
+        font-size: 18px;
+        font-family: monospace;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      
+      /* Reservation Started Banner */
+      .reservation-started-banner {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+        z-index: 10000;
+        max-width: 600px;
+        width: 90%;
+        text-align: center;
+        animation: slideDown 0.5s ease-out;
+      }
+      
+      .reservation-started-banner h3 {
+        margin: 0 0 10px 0;
+        font-size: 22px;
+        font-weight: bold;
+      }
+      
+      .reservation-started-banner p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      
+      .reservation-started-banner .close-banner {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        opacity: 0.8;
+      }
+      
+      .reservation-started-banner .close-banner:hover {
+        opacity: 1;
+      }
+      
+      @keyframes slideDown {
+        from {
+          top: -100px;
+          opacity: 0;
+        }
+        to {
+          top: 100px;
+          opacity: 1;
+        }
       }
     </style>
   </head>
@@ -481,10 +646,6 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
 
     <!-- User Reservation Page Content -->
     <div class="reservation-page">
-      <div class="reservation-header">
-        <h1>Reservation</h1>
-      </div>
-
       <!-- User Info Display -->
       <div class="form-section">
         <div class="info-row">
@@ -496,46 +657,58 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
           <span class="user-name"><?php echo htmlspecialchars($currentUser['name']); ?></span>
         </div>
       </div>
-      
-      <!-- Sit-In Form Section -->
-      <div class="form-section" id="sitin-section">
-        <h2>Instant Sit-In</h2>
-        <form id="sitin-form" onsubmit="submitSitIn(event)">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="sitin-purpose">Purpose:</label>
-              <input type="text" id="sitin-purpose" placeholder="Enter purpose" required />
+
+      <!-- Tab Navigation -->
+      <div style="display: flex; gap: 5px; margin-bottom: 15px;">
+        <button class="tab-btn active" id="tab-instant" onclick="switchTab('instant')">Instant Sit-In</button>
+        <button class="tab-btn" id="tab-reserve" onclick="switchTab('reserve')">Make Reservation</button>
+        <button class="tab-btn" id="tab-log" onclick="switchTab('log')">Reservation History</button>
+      </div>
+
+      <!-- Instant Sit-In Tab Content -->
+      <div class="tab-content active" id="tab-content-instant">
+        <!-- Sit-In Form Section -->
+        <div class="form-section" id="sitin-section">
+          <h2>Instant Sit-In</h2>
+          <form id="sitin-form" onsubmit="submitSitIn(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="sitin-purpose">Purpose:</label>
+                <input type="text" id="sitin-purpose" placeholder="Enter purpose" required />
+              </div>
+              <div class="form-group">
+                <label for="sitin-lab">Laboratory:</label>
+                <select id="sitin-lab" onchange="handleSitInLabChange()" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
+                  <option value="">Select Laboratory</option>
+                  <option value="524">Lab 524</option>
+                  <option value="526">Lab 526</option>
+                  <option value="528">Lab 528</option>
+                  <option value="530">Lab 530</option>
+                  <option value="MAC">MAC Lab</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="sitin-lab">Laboratory:</label>
-              <select id="sitin-lab" onchange="handleSitInLabChange()" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;">
-                <option value="">Select Laboratory</option>
-                <option value="524">Lab 524</option>
-                <option value="526">Lab 526</option>
-                <option value="528">Lab 528</option>
-                <option value="530">Lab 530</option>
-                <option value="MAC">MAC Lab</option>
-              </select>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Select PC:</label>
+                <button type="button" id="sitin-select-pc-btn" class="pc-select-btn" onclick="openSitInPcModal()">Select a PC</button>
+                <div class="selected-pc-info" id="sitin-selected-pc-info"></div>
+              </div>
             </div>
+            <button type="submit" class="btn-primary">Submit</button>
+          </form>
+          <div class="sessions-display">
+            <div>Remaining Sessions</div>
+            <div class="sessions-count" id="remaining-sessions"><?php echo $remainingSessions; ?></div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Select PC:</label>
-              <button type="button" id="sitin-select-pc-btn" class="pc-select-btn" onclick="openSitInPcModal()">Select a PC</button>
-              <div class="selected-pc-info" id="sitin-selected-pc-info"></div>
-            </div>
-          </div>
-          <button type="submit" class="btn-primary">Submit</button>
-        </form>
-        <div class="sessions-display">
-          <div>Remaining Sessions</div>
-          <div class="sessions-count" id="remaining-sessions"><?php echo $remainingSessions; ?></div>
         </div>
       </div>
 
-      <!-- Reservation Section with PC Grid -->
-      <div class="form-section" id="reservation-section">
-        <h2>Make a Reservation</h2>
+      <!-- Make a Reservation Tab Content -->
+      <div class="tab-content" id="tab-content-reserve">
+        <!-- Reservation Section with PC Grid -->
+        <div class="form-section" id="reservation-section">
+          <h2>Make a Reservation</h2>
           <div class="form-row">
             <div class="form-group">
               <label for="reservation-lab-select">Select Laboratory:</label>
@@ -550,34 +723,67 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
             </div>
           </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Select PC:</label>
-            <button type="button" id="select-pc-btn" class="pc-select-btn" onclick="openPcModal()">Select a PC</button>
-            <div class="selected-pc-info" id="selected-pc-info"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Select PC:</label>
+              <button type="button" id="select-pc-btn" class="pc-select-btn" onclick="openPcModal()">Select a PC</button>
+              <div class="selected-pc-info" id="selected-pc-info"></div>
+            </div>
           </div>
-        </div>
 
-        <form id="reservation-form" onsubmit="submitReservation(event)" style="margin-top: 20px;">
-          <input type="hidden" id="reservation-lab" />
-          <div class="form-row">
-            <div class="form-group">
-              <label for="reservation-time">Time In:</label>
-              <input type="time" id="reservation-time" required />
+          <form id="reservation-form" onsubmit="submitReservation(event)" style="margin-top: 20px;">
+            <input type="hidden" id="reservation-lab" />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reservation-time">Time In:</label>
+                <input type="time" id="reservation-time" required />
+              </div>
+              <div class="form-group">
+                <label for="reservation-date">Date:</label>
+                <input type="date" id="reservation-date" required />
+              </div>
             </div>
-            <div class="form-group">
-              <label for="reservation-date">Date:</label>
-              <input type="date" id="reservation-date" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="reservation-purpose">Purpose:</label>
+                <input type="text" id="reservation-purpose" placeholder="Enter purpose" required />
+              </div>
             </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="reservation-purpose">Purpose:</label>
-              <input type="text" id="reservation-purpose" placeholder="Enter purpose" required />
-            </div>
-          </div>
-          <button type="submit" class="btn-primary" onclick="submitReservation(event)">Reserve</button>
-        </form>
+            <button type="submit" class="btn-primary" onclick="submitReservation(event)">Reserve</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Reservation Log Tab Content -->
+      <div class="tab-content" id="tab-content-log">
+        <div class="form-section">
+          <h2>Reservation History</h2>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Laboratory</th>
+                <th>PC</th>
+                <th>Purpose</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body">
+              <tr>
+                <td colspan="6" style="text-align: center;">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timer Floating Action Button -->
+    <div class="timer-fab" id="timer-fab" onclick="toggleTimerDetails()">
+      <div>
+        <div class="timer-fab-label">Sit-In Timer</div>
+        <div class="timer-fab-time" id="timer-fab-time">--:--</div>
       </div>
     </div>
 
@@ -644,14 +850,100 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
     </div>
 
 <script>
+      // Tab switching
+      let currentTab = 'instant';
+      
+      function switchTab(tabName) {
+        // Don't reload if clicking the same tab
+        if (currentTab === tabName) {
+          return;
+        }
+        
+        currentTab = tabName;
+        
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        document.getElementById('tab-' + tabName).classList.add('active');
+        document.getElementById('tab-content-' + tabName).classList.add('active');
+        
+        if (tabName === 'log') {
+          loadReservationLog();
+        }
+      }
+
+      // Load Reservation Log
+      function loadReservationLog() {
+        console.log('loadReservationLog called');
+        fetch('user_dashboard.php?action=reservations')
+          .then(res => res.json())
+          .then(data => {
+            console.log('Reservation data:', data);
+            if (data.success) {
+              displayReservationLog(data.reservations);
+            } else {
+              console.log('Error:', data.message);
+            }
+          })
+          .catch(err => console.error('Error:', err));
+      }
+
+      // Display Reservation Log
+      function displayReservationLog(reservations) {
+        console.log('displayReservationLog called with:', reservations);
+        const tbody = document.getElementById('log-table-body');
+        console.log('tbody element:', tbody);
+        
+        if (reservations.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No reservations found</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = reservations.map(res => {
+          let statusClass = 'status-' + res.status;
+          let statusText = res.status.charAt(0).toUpperCase() + res.status.slice(1);
+          return `
+            <tr>
+              <td>${res.reservation_date}</td>
+              <td>${res.start_time} - ${res.end_time}</td>
+              <td>Lab ${res.lab_number}</td>
+              <td>${res.pc_number ? 'PC ' + res.pc_number : '-'}</td>
+              <td>${res.purpose}</td>
+              <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            </tr>
+          `;
+        }).join('');
+      }
+
       // Initialize on page load
       document.addEventListener('DOMContentLoaded', function() {
+        // Set initial tab state without calling switchTab
+        currentTab = 'instant';
+        
         loadNavNotifications();
         loadUserReservations();
         loadRemainingSessions();
         
+        // Preload reservation log data so it's ready when user clicks the tab
+        loadReservationLog();
+        
+        // Initialize notification count
+        lastNotificationCount = 0;
+        
         // Poll for new notifications every 30 seconds
         setInterval(loadNavNotifications, 30000);
+        
+        // Poll for reservation updates every 15 seconds (checks if reservations should auto-start)
+        setInterval(function() {
+          loadReservationLog();
+          loadRemainingSessions();
+          loadNavNotifications(); // Check for new notifications (reservation started)
+          
+          // Check if there's an active sit-in that might have started from a reservation
+          if (hasActiveSitIn) {
+            fetchActiveSitInDetails();
+          }
+        }, 15000);
         
         // Set minimum date to today
         const today = new Date().toISOString().split('T')[0];
@@ -669,7 +961,75 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
 
         // Apply restrictions based on current status
         applyRestrictions();
+
+        // Initialize sit-in timer if there's an active sit-in
+        if (hasActiveSitIn) {
+          fetchActiveSitInDetails();
+        }
       });
+
+      let currentSitInDetails = null;
+      let timerInterval = null;
+
+      function fetchActiveSitInDetails() {
+        fetch('user_dashboard.php?action=get_active_sitin')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.sitin) {
+              currentSitInDetails = data.sitin;
+              initSitInTimer(currentSitInDetails);
+            }
+          })
+          .catch(err => console.error('Error fetching sit-in details:', err));
+      }
+
+      function initSitInTimer(sitInData) {
+        const fab = document.getElementById('timer-fab');
+        const timeDisplay = document.getElementById('timer-fab-time');
+        
+        if (!fab || !timeDisplay) return;
+
+        fab.classList.add('active');
+        
+        let remainingSeconds = sitInData.remaining_seconds;
+        
+        updateTimerDisplay(remainingSeconds);
+        
+        timerInterval = setInterval(function() {
+          remainingSeconds--;
+          
+          if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            timeDisplay.textContent = '00:00';
+            fab.classList.add('expiring');
+            return;
+          }
+          
+          updateTimerDisplay(remainingSeconds);
+          
+          if (remainingSeconds <= 300) {
+            fab.classList.add('expiring');
+          }
+        }, 1000);
+      }
+
+      function updateTimerDisplay(seconds) {
+        const timeDisplay = document.getElementById('timer-fab-time');
+        const fab = document.getElementById('timer-fab');
+        
+        if (!timeDisplay) return;
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        timeDisplay.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+      }
+
+      function toggleTimerDetails() {
+        if (currentSitInDetails) {
+          const pcInfo = currentSitInDetails.pc_number ? 'PC ' + currentSitInDetails.pc_number : 'Not assigned';
+          alert('Active Sit-In\nLab: ' + currentSitInDetails.lab_number + '\nPC: ' + pcInfo + '\nStarted: ' + currentSitInDetails.time_in + '\nEnds: ' + currentSitInDetails.end_time);
+        }
+      }
 
       function applyRestrictions() {
         // If user has active sit-in, disable instant sit-in
@@ -699,6 +1059,34 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       }
 
       // Load notifications for navigation dropdown
+      let lastNotificationCount = 0;
+      
+      function showReservationStartedBanner(message) {
+        // Remove existing banner if any
+        const existingBanner = document.querySelector('.reservation-started-banner');
+        if (existingBanner) {
+          existingBanner.remove();
+        }
+        
+        // Create banner
+        const banner = document.createElement('div');
+        banner.className = 'reservation-started-banner';
+        banner.innerHTML = `
+          <button class="close-banner" onclick="this.parentElement.remove()">&times;</button>
+          <h3>🎉 Your Reservation Has Started!</h3>
+          <p>${message}</p>
+        `;
+        
+        document.body.appendChild(banner);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+          if (banner.parentElement) {
+            banner.remove();
+          }
+        }, 10000);
+      }
+      
       function loadNavNotifications() {
         fetch('user_dashboard.php?action=notifications')
           .then(res => res.json())
@@ -710,6 +1098,28 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
                 navBadge.textContent = data.unread_count;
                 navBadge.style.display = data.unread_count > 0 ? 'inline-block' : 'none';
               }
+              
+              // Check if there are new notifications (potential reservation start)
+              if (data.unread_count > lastNotificationCount && lastNotificationCount > 0) {
+                // Check for reservation started notification
+                const reservationStarted = data.notifications.find(n => 
+                  n.title && n.title.includes('Reservation Started') && !n.is_read
+                );
+                
+                if (reservationStarted) {
+                  // Show beautiful notification banner
+                  showReservationStartedBanner(reservationStarted.message);
+                  
+                  // Update the active sit-in flag and reload page to show sit-in
+                  hasActiveSitIn = true;
+                  hasPendingReservation = false;
+                  
+                  // Refresh active sit-in details
+                  fetchActiveSitInDetails();
+                }
+              }
+              
+              lastNotificationCount = data.unread_count;
             }
           })
           .catch(err => console.error('Error loading notifications:', err));
@@ -867,6 +1277,7 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       }
 
       function openSitInPcModal() {
+        console.log('openSitInPcModal called');
         const lab = document.getElementById('sitin-lab').value;
         if (!lab) {
           alert('Please select a laboratory first');
@@ -874,12 +1285,14 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         }
 
         const modal = document.getElementById('sitin-pc-modal');
+        console.log('Modal element:', modal);
         const labName = document.getElementById('sitin-modal-lab-name');
         const pcGrid = document.getElementById('sitin-modal-pc-grid');
         
         labName.textContent = 'Lab ' + lab;
         pcGrid.innerHTML = '<p>Loading...</p>';
         modal.classList.add('active');
+        console.log('Modal should now be active');
 
         fetch('user_dashboard.php?action=get_lab_pc_status&lab=' + lab)
           .then(res => res.json())
@@ -993,6 +1406,9 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
             // Update the pending reservation flag and apply restrictions
             hasPendingReservation = true;
             applyRestrictions();
+            
+            // Refresh the reservation log to show the new reservation
+            loadReservationLog();
           }
         });
       }
@@ -1029,6 +1445,7 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       }
 
       function openPcModal() {
+        console.log('openPcModal called');
         const lab = document.getElementById('reservation-lab-select').value;
         if (!lab) {
           alert('Please select a laboratory first');
@@ -1036,12 +1453,14 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         }
 
         const modal = document.getElementById('pc-modal');
+        console.log('Modal element:', modal);
         const labName = document.getElementById('modal-lab-name');
         const pcGrid = document.getElementById('modal-pc-grid');
         
         labName.textContent = 'Lab ' + lab;
         pcGrid.innerHTML = '<p>Loading...</p>';
         modal.classList.add('active');
+        console.log('Modal should now be active');
 
         fetch('user_dashboard.php?action=get_lab_pc_status&lab=' + lab)
           .then(res => res.json())

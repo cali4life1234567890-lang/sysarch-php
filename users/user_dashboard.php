@@ -61,6 +61,9 @@ switch ($action) {
     case 'remaining_sessions':
         getRemainingSessions();
         break;
+    case 'get_active_sitin':
+        getActiveSitIn();
+        break;
     case 'submit_feedback':
         submitFeedback();
         break;
@@ -268,8 +271,99 @@ function getHistory() {
     }
 }
 
+function checkAndStartApprovedReservations() {
+    global $pdo;
+    
+    try {
+        $checkActiveStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
+        $checkActiveStmt->execute([$_SESSION['user_id']]);
+        if ($checkActiveStmt->fetch()) {
+            return;
+        }
+        
+        // Check for approved reservations that are due
+        $stmt = $pdo->prepare("
+            SELECT id, user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose
+            FROM reservations
+            WHERE user_id = ? AND status = 'approved' AND date(reservation_date) = date('now') AND time(start_time) <= time('now')
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $approvedReservations = $stmt->fetchAll();
+        
+        if (empty($approvedReservations)) {
+            // Also check for pending reservations that have reached their time
+            $stmt = $pdo->prepare("
+                SELECT id, user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose
+                FROM reservations
+                WHERE user_id = ? AND status = 'pending' AND date(reservation_date) = date('now') AND time(start_time) <= time('now')
+            ");
+            $stmt->execute([$_SESSION['user_id']]);
+            $approvedReservations = $stmt->fetchAll();
+        }
+        
+        if (empty($approvedReservations)) {
+            return;
+        }
+        
+        foreach ($approvedReservations as $res) {
+            $checkStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE reservation_id = ? AND time_out IS NULL");
+            $checkStmt->execute([$res['id']]);
+            if ($checkStmt->fetch()) {
+                continue;
+            }
+            
+            $sessionStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+            $sessionStmt->execute([$_SESSION['user_id']]);
+            $session = $sessionStmt->fetch();
+            
+            $remainingSessions = $session ? $session['remaining_sessions'] : 30;
+            
+            if ($remainingSessions <= 0) {
+                continue;
+            }
+            
+            try {
+                $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
+            } catch (PDOException $e) {
+            }
+            
+            try {
+                $pdo->exec("ALTER TABLE sitin_records ADD COLUMN reservation_id INTEGER");
+            } catch (PDOException $e) {
+            }
+            
+            $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, reservation_id, time_in) VALUES (?, ?, ?, ?, ?, datetime('now'))");
+            $insertStmt->execute([$_SESSION['user_id'], $res['lab_number'], $res['pc_number'], $res['purpose'], $res['id']]);
+            
+            if ($session) {
+                $updateStmt = $pdo->prepare("UPDATE user_sessions SET remaining_sessions = remaining_sessions - 1 WHERE user_id = ?");
+                $updateStmt->execute([$_SESSION['user_id']]);
+            } else {
+                $insertSessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 29)");
+                $insertSessionStmt->execute([$_SESSION['user_id']]);
+            }
+            
+            if ($res['pc_number']) {
+                $pcStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'occupied' WHERE lab_number = ? AND pc_number = ?");
+                $pcStmt->execute([$res['lab_number'], $res['pc_number']]);
+            }
+            
+            // Update reservation status to active
+            $pdo->prepare("UPDATE reservations SET status = 'active' WHERE id = ?")->execute([$res['id']]);
+            
+            // Create notification for user
+            $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
+            $notifStmt->execute([$_SESSION['user_id'], 'Reservation Started!', 'Your reservation for Lab ' . $res['lab_number'] . ' has started! You are now signed in. PC: ' . ($res['pc_number'] ? $res['pc_number'] : 'Not assigned'), 'success']);
+        }
+    } catch (PDOException $e) {
+        error_log('Error in checkAndStartApprovedReservations: ' . $e->getMessage());
+    }
+}
+
 function getCurrentSitIn() {
     global $pdo;
+    
+    checkAndStartApprovedReservations();
     
     try {
         $stmt = $pdo->prepare("
@@ -411,6 +505,9 @@ function endSitIn() {
 function getRemainingSessions() {
     global $pdo;
     
+    // Check and start any approved reservations that are due
+    checkAndStartApprovedReservations();
+    
     // Create user_sessions table if not exists
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS user_sessions (
@@ -439,6 +536,39 @@ function getRemainingSessions() {
     }
 }
 
+function getActiveSitIn() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT id, lab_number, pc_number, time_in FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
+        $stmt->execute([$_SESSION['user_id']]);
+        $result = $stmt->fetch();
+        
+        if ($result) {
+            $timeIn = strtotime($result['time_in']);
+            $endTime = strtotime('+2 hours', $timeIn);
+            $currentTime = time();
+            $remainingSeconds = max(0, $endTime - $currentTime);
+            
+            echo json_encode([
+                'success' => true,
+                'sitin' => [
+                    'id' => (int)$result['id'],
+                    'lab_number' => $result['lab_number'],
+                    'pc_number' => $result['pc_number'] ? (int)$result['pc_number'] : null,
+                    'time_in' => $result['time_in'],
+                    'end_time' => date('Y-m-d H:i:s', $endTime),
+                    'remaining_seconds' => (int)$remainingSeconds
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => true, 'sitin' => null]);
+        }
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
 function getReservations() {
     global $pdo;
     
@@ -458,6 +588,9 @@ function getReservations() {
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
+    
+    // Check and start any approved reservations that are due
+    checkAndStartApprovedReservations();
     
     try {
         $stmt = $pdo->prepare("
