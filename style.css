@@ -616,13 +616,13 @@ span {
 }
 
 .status-pending {
-  background-color: #17a2b8;
-  color: white;
+  color: #ffc107;
+  font-weight: bold;
 }
 
 .status-approved {
-  background-color: #28a745;
-  color: white;
+  color: #28a745;
+  font-weight: bold;
 }
 
 .status-cancelled {

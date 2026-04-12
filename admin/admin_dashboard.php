@@ -69,6 +69,9 @@ function getStats() {
     global $pdo;
     
     try {
+        // Auto-terminate sit-ins that exceed 2 hours
+        autoTerminateExpiredSitIns();
+        
         // Total students
         $stmt = $pdo->query("SELECT COUNT(*) as count FROM users WHERE id_number != '2664388'");
         $totalStudents = $stmt->fetch()['count'];
@@ -479,5 +482,37 @@ function postAnnouncement() {
         echo json_encode(['success' => true, 'message' => 'Announcement posted to ' . count($users) . ' users']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function autoTerminateExpiredSitIns() {
+    global $pdo;
+    $maxDuration = 7200;
+    
+    try {
+        $stmt = $pdo->query("
+            SELECT id, user_id, lab_number, pc_number, time_in
+            FROM sitin_records
+            WHERE time_out IS NULL
+        ");
+        $activeSitIns = $stmt->fetchAll();
+        
+        foreach ($activeSitIns as $record) {
+            $timeIn = strtotime($record['time_in']);
+            $now = time();
+            $duration = $now - $timeIn;
+            
+            if ($duration >= $maxDuration) {
+                $endStmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ?");
+                $endStmt->execute([$record['id']]);
+                
+                if ($record['pc_number']) {
+                    $pcStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                    $pcStmt->execute([$record['lab_number'], $record['pc_number']]);
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        // Ignore errors, just log
     }
 }

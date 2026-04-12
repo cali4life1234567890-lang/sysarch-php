@@ -978,7 +978,24 @@ $userJson = json_encode($currentUser);
       function toggleUserNotificationDropdown() {
         const dropdown = document.getElementById('user-notification-content');
         if (dropdown) {
+          const isShowing = dropdown.classList.contains('show');
           dropdown.classList.toggle('show');
+          
+          // Mark all notifications as read when dropdown opens
+          if (!isShowing) {
+            // Immediately hide badge for better UX
+            const homeBadge = document.getElementById('home-notification-badge');
+            if (homeBadge) {
+              homeBadge.style.display = 'none';
+            }
+            // Also hide nav badge if exists
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.style.display = 'none';
+            }
+            // Then send request to mark as read
+            markAllNotificationsRead();
+          }
         }
       }
 
@@ -1071,11 +1088,20 @@ $userJson = json_encode($currentUser);
           .then(res => res.json())
           .then(data => {
             if (data.success) {
+              if (data.auto_ended) {
+                alert(data.message);
+              }
+              
               const statusEl = document.getElementById('user-current-status');
               const btnEl = document.getElementById('sitin-action-btn');
               
               if (data.current_sitin) {
-                statusEl.textContent = 'Currently in ' + data.current_sitin.lab + ' (Since: ' + data.current_sitin.time_in + ')';
+                let statusText = 'Currently in ' + data.current_sitin.lab + ' (Since: ' + data.current_sitin.time_in + ')';
+                if (data.remaining_seconds) {
+                  const minutesLeft = Math.floor(data.remaining_seconds / 60);
+                  statusText += ' - ' + minutesLeft + 'min remaining';
+                }
+                statusEl.textContent = statusText;
                 btnEl.textContent = 'End Sit-In';
                 btnEl.className = 'btn-danger';
                 btnEl.onclick = endSitIn;
@@ -1418,18 +1444,24 @@ $userJson = json_encode($currentUser);
 
 // Mark all notifications as read
       function markAllNotificationsRead() {
-        fetch('user_dashboard.php?action=mark_all_notifications_read', {
+        fetch('users/user_dashboard.php?action=mark_all_notifications_read', {
           method: 'POST'
         })
         .then(res => res.json())
         .then(data => {
           console.log('Mark all read response:', data);
           if (data.success) {
-            // Update badge
+            // Update nav badge
             const navBadge = document.getElementById('nav-notification-badge');
             if (navBadge) {
               navBadge.textContent = '0';
               navBadge.style.display = 'none';
+            }
+            // Also update home badge if exists
+            const homeBadge = document.getElementById('home-notification-badge');
+            if (homeBadge) {
+              homeBadge.textContent = '0';
+              homeBadge.style.display = 'none';
             }
           }
         })

@@ -268,8 +268,40 @@ $userJson = json_encode($currentUser);
         event.stopPropagation();
         const dropdown = document.getElementById('nav-notification-content');
         if (dropdown) {
+          const isShowing = dropdown.classList.contains('show');
           dropdown.classList.toggle('show');
+          
+          // Mark all notifications as read when dropdown opens
+          if (!isShowing) {
+            // Immediately hide badge for better UX
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.style.display = 'none';
+            }
+            // Then send request to mark as read
+            markAllNotificationsRead();
+          }
         }
+      }
+
+      // Mark all notifications as read
+      function markAllNotificationsRead() {
+        fetch('user_dashboard.php?action=mark_all_notifications_read', {
+          method: 'POST'
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log('Mark all read response:', data);
+          if (data.success) {
+            // Hide the badge
+            const navBadge = document.getElementById('nav-notification-badge');
+            if (navBadge) {
+              navBadge.textContent = '0';
+              navBadge.style.display = 'none';
+            }
+          }
+        })
+        .catch(err => console.error('Error marking notifications read:', err));
       }
 
       // Display notifications in navigation dropdown

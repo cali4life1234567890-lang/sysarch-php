@@ -56,14 +56,37 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         .status-approved {
             color: #28a745;
             font-weight: bold;
+            border: 1px solid #28a745;
+            padding: 2px 8px;
+            border-radius: 3px;
         }
         .status-denied {
             color: #dc3545;
             font-weight: bold;
+            border: 1px solid #dc3545;
+            padding: 2px 8px;
+            border-radius: 3px;
         }
         .status-pending {
             color: #ffc107;
             font-weight: bold;
+            border: 1px solid #ffc107;
+            padding: 2px 8px;
+            border-radius: 3px;
+        }
+        .action-status {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .action-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .action-denied {
+            background-color: #f8d7da;
+            color: #721c24;
         }
     </style>
 </head>
@@ -153,14 +176,11 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                         <button class="btn-approve" onclick="approveReservation(${res.id})">Approve</button>
                         <button class="btn-deny" onclick="denyReservation(${res.id})">Deny</button>
                     </div>`;
-                } else if (res.status === 'approved') {
-                    actions = '<span class="status-approved">Approved</span>';
-                } else if (res.status === 'denied') {
-                    actions = '<span class="status-denied">Denied</span>';
                 } else {
-                    actions = '<span>' + res.status + '</span>';
+                    actions = '';
                 }
                 
+                let statusClass = res.status;
                 html += `<tr>
                     <td>${res.id}</td>
                     <td>${res.id_number}</td>
@@ -170,7 +190,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                     <td>${res.reservation_date}</td>
                     <td>${time}</td>
                     <td>${res.purpose || 'N/A'}</td>
-                    <td><span class="status-${res.status}">${res.status}</span></td>
+                    <td><span class="status-${statusClass}">${res.status.charAt(0).toUpperCase() + res.status.slice(1)}</span></td>
                     <td>${actions}</td>
                 </tr>`;
             });

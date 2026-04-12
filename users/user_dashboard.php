@@ -273,7 +273,7 @@ function getCurrentSitIn() {
     
     try {
         $stmt = $pdo->prepare("
-            SELECT id, lab_number, time_in, purpose
+            SELECT id, lab_number, pc_number, time_in, purpose
             FROM sitin_records
             WHERE user_id = ? AND time_out IS NULL
             ORDER BY time_in DESC
@@ -283,6 +283,31 @@ function getCurrentSitIn() {
         $record = $stmt->fetch();
         
         if ($record) {
+            $timeIn = strtotime($record['time_in']);
+            $now = time();
+            $duration = $now - $timeIn;
+            $maxDuration = 7200;
+            
+            if ($duration >= $maxDuration) {
+                $endStmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ?");
+                $endStmt->execute([$record['id']]);
+                
+                if ($record['pc_number']) {
+                    $pcStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                    $pcStmt->execute([$record['lab_number'], $record['pc_number']]);
+                }
+                
+                echo json_encode([
+                    'success' => true,
+                    'current_sitin' => null,
+                    'auto_ended' => true,
+                    'message' => 'Your sit-in has been automatically ended due to the 2-hour limit'
+                ]);
+                return;
+            }
+            
+            $remainingSeconds = $maxDuration - $duration;
+            
             echo json_encode([
                 'success' => true,
                 'current_sitin' => [
@@ -290,7 +315,8 @@ function getCurrentSitIn() {
                     'lab' => $record['lab_number'],
                     'time_in' => $record['time_in'],
                     'purpose' => $record['purpose']
-                ]
+                ],
+                'remaining_seconds' => $remainingSeconds
             ]);
         } else {
             echo json_encode(['success' => true, 'current_sitin' => null]);
