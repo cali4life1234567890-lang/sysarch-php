@@ -82,6 +82,9 @@ switch ($action) {
     case 'reset_all_passwords':
         resetAllPasswords();
         break;
+    case 'leaderboard':
+        getLeaderboard();
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -1008,6 +1011,49 @@ function resetAllPasswords() {
         $updateStmt->execute([$newPassword]);
         
         echo json_encode(['success' => true, 'message' => 'All passwords reset to 123456']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getLeaderboard() {
+    global $pdo;
+    
+    try {
+        $userId = $_SESSION['user_id'];
+        
+        $hoursStmt = $pdo->prepare("
+            SELECT 
+                COALESCE(SUM(
+                    CASE 
+                        WHEN time_out IS NOT NULL 
+                        THEN (julianday(time_out) - julianday(time_in)) * 24 
+                        ELSE 0 
+                    END
+                ), 0) as total_hours
+            FROM sitin_records 
+            WHERE user_id = ?
+        ");
+        $hoursStmt->execute([$userId]);
+        $hoursResult = $hoursStmt->fetch();
+        $totalHours = round($hoursResult['total_hours'], 2);
+        
+        $sessionsStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+        $sessionsStmt->execute([$userId]);
+        $sessionResult = $sessionsStmt->fetch();
+        $remainingSessions = $sessionResult ? $sessionResult['remaining_sessions'] : 30;
+        $usedSessions = 30 - $remainingSessions;
+        
+        $totalScore = (0.60 * $totalHours) + (0.40 * $usedSessions);
+        
+        echo json_encode([
+            'success' => true,
+            'leaderboard' => [
+                'hours_spent' => $totalHours,
+                'sessions_used' => $usedSessions,
+                'total_score' => round($totalScore, 2)
+            ]
+        ]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

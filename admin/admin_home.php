@@ -59,6 +59,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         <div class="nav-links admin-links">
             <a href="admin_home.php" class="active">Home</a>
             <a href="#" onclick="openSearchModal(); return false;">Search</a>
+            <a href="admin_leaderboard.php">Leaderboard</a>
             <a href="admin_students.php">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
             <a href="admin_records.php">View Sit-In Records</a>

@@ -1287,3 +1287,41 @@ span {
 .profile-picture-upload .btn-small:hover {
   background-color: #218838;
 }
+
+.leaderboard-nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-right: 20px;
+  padding: 5px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.leaderboard-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.leaderboard-item.total {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+.leaderboard-label {
+  font-size: 10px;
+  color: #ccc;
+  text-transform: uppercase;
+}
+
+.leaderboard-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.leaderboard-item.total .leaderboard-value {
+  color: #ffd700;
+}

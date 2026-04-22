@@ -374,6 +374,7 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
         <div class="nav-links admin-links">
             <a href="admin_home.php">Home</a>
             <a href="admin_students.php?open_search=modal">Search</a>
+            <a href="admin_leaderboard.php">Leaderboard</a>
             <a href="admin_students.php" class="active">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
             <a href="admin_records.php">View Sit-In Records</a>

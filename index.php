@@ -73,6 +73,7 @@ $userJson = json_encode($currentUser);
       <div class="nav-links admin-links">
         <a href="#" onclick="showSection('admin-home')" class="active">Home</a>
         <a href="#" onclick="showSection('admin-search')">Search</a>
+        <a href="#" onclick="showSection('admin-leaderboard')">Leaderboard</a>
         <a href="#" onclick="showSection('admin-students')">Students</a>
         <a href="#" onclick="showSection('admin-sitin')">Sit-In</a>
         <a href="#" onclick="showSection('admin-records')">View Sit-In Records</a>
@@ -134,6 +135,26 @@ $userJson = json_encode($currentUser);
         <button class="btn-primary" onclick="adminSearch()">Search</button>
       </div>
       <div id="search-results" class="results-container"></div>
+    </div>
+
+    <div id="admin-leaderboard" class="content-section admin-section" style="display: none">
+      <h1>Leaderboard</h1>
+      <div class="leaderboard-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Student</th>
+              <th>Course</th>
+              <th>Hours Spent</th>
+              <th>Sessions Used</th>
+              <th>Total Score</th>
+            </tr>
+          </thead>
+          <tbody id="admin-leaderboard-body">
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div id="admin-students" class="content-section admin-section" style="display: none">
@@ -296,6 +317,7 @@ $userJson = json_encode($currentUser);
               </div>
             </div>
           </div>
+          <a href="users/leaderboard.php" id="nav-leaderboard">Leaderboard</a>
           <a href="index.php?section=user-home" id="nav-home">Home</a>
           <a href="index.php?section=user-profile" id="nav-profile">Edit Profile</a>
           <a href="users/user_history.php" id="nav-history">History</a>
@@ -630,6 +652,8 @@ $userJson = json_encode($currentUser);
         loadAdminAnnouncements();
         // Load feedback
         loadAdminFeedback();
+        // Load leaderboard
+        loadAdminLeaderboard();
       }
 
       // Load admin announcements
@@ -647,6 +671,42 @@ $userJson = json_encode($currentUser);
               displayAdminFeedback(data.feedback);
             }
           });
+      }
+
+      // Load leaderboard for admin
+      function loadAdminLeaderboard() {
+        fetch('admin/admin_dashboard.php?action=leaderboard')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              displayAdminLeaderboard(data.leaderboard);
+            }
+          });
+      }
+
+      // Display leaderboard in admin section
+      function displayAdminLeaderboard(leaderboardData) {
+        const tbody = document.getElementById('admin-leaderboard-body');
+        if (!tbody) return;
+
+        if (!leaderboardData || leaderboardData.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6">No data available</td></tr>';
+          return;
+        }
+
+        let html = '';
+        leaderboardData.forEach((entry, index) => {
+          const rankClass = entry.rank <= 3 ? 'rank-' + entry.rank : '';
+          html += `<tr>
+            <td class="${rankClass}">#${entry.rank}</td>
+            <td>${entry.name}</td>
+            <td>${entry.course} - ${entry.level}</td>
+            <td>${entry.hours_spent}</td>
+            <td>${entry.sessions_used}</td>
+            <td class="score-cell">${entry.total_score}</td>
+          </tr>`;
+        });
+        tbody.innerHTML = html;
       }
 
       // Display feedback in admin section

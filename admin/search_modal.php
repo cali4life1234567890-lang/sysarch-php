@@ -370,7 +370,7 @@ function showSitinModal(idno, name, sessions) {
             </div>
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label>
-                <select id="sitinLab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+                <select id="sitinLab" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" onchange="onLabChange()">
                     <option value="">Select Laboratory</option>
                     <option value="524">524</option>
                     <option value="526">526</option>
@@ -378,6 +378,11 @@ function showSitinModal(idno, name, sessions) {
                     <option value="530">530</option>
                     <option value="MAC">MAC</option>
                 </select>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <button type="button" id="selectPcBtn" onclick="openPCModal()" style="width: 100%; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;" disabled>Select PC</button>
+                <input type="hidden" id="selectedPc" value="">
+                <span id="selectedPcDisplay" style="display: block; margin-top: 5px; color: #28a745;"></span>
             </div>
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Remaining Sessions</label>
@@ -391,6 +396,68 @@ function showSitinModal(idno, name, sessions) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+function onLabChange() {
+    var lab = document.getElementById('sitinLab').value;
+    var pcBtn = document.getElementById('selectPcBtn');
+    var pcDisplay = document.getElementById('selectedPcDisplay');
+    var selectedPc = document.getElementById('selectedPc');
+    
+    if (lab) {
+        pcBtn.disabled = false;
+        pcBtn.style.background = '#144d94';
+        // Reset PC selection when lab changes
+        selectedPc.value = '';
+        pcDisplay.textContent = '';
+    } else {
+        pcBtn.disabled = true;
+        pcBtn.style.background = '#6c757d';
+        selectedPc.value = '';
+        pcDisplay.textContent = '';
+    }
+}
+
+function openPCModal() {
+    var lab = document.getElementById('sitinLab').value;
+    
+    // Generate 56 PC numbers (8x7 grid)
+    var pcCount = 56;
+    
+    var pcOptionsHtml = '';
+    for (var i = 1; i <= pcCount; i++) {
+        pcOptionsHtml += '<div class="pc-option" onclick="selectPC(' + i + ')" style="padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin: 5px; cursor: pointer; text-align: center; background: white; transition: all 0.2s;" onmouseover="this.style.background=#f0f0f0" onmouseout="this.style.background=white">' + i + '</div>';
+    }
+    
+    var pcModalHtml = `
+    <div id="pcSelectModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
+            <span onclick="closePCModal()" style="position: absolute; top: 10px; right: 20px; font-size: 28px; cursor: pointer; color: #666;">&times;</span>
+            <h2 style="margin-top: 0;">Select PC - Lab ${lab}</h2>
+            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
+                ${pcOptionsHtml}
+            </div>
+        </div>
+    </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', pcModalHtml);
+}
+
+function selectPC(pcNum) {
+    var selectedPc = document.getElementById('selectedPc');
+    var pcDisplay = document.getElementById('selectedPcDisplay');
+    
+    selectedPc.value = pcNum;
+    pcDisplay.textContent = 'PC ' + pcNum + ' selected';
+    closePCModal();
+}
+
+function closePCModal() {
+    var modal = document.getElementById('pcSelectModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 function closeSitinModal() {
     var modal = document.getElementById('sitinModal');
     if (modal) {
@@ -402,6 +469,7 @@ async function submitSitin() {
     var idno = document.getElementById('sitinIdNumber').value;
     var purpose = document.getElementById('sitinPurpose').value.trim();
     var lab = document.getElementById('sitinLab').value;
+    var pc = document.getElementById('selectedPc').value;
 
     if (!purpose || !lab) {
         alert('Please fill in all required fields');
@@ -413,6 +481,9 @@ async function submitSitin() {
         formData.append('id_number', idno);
         formData.append('purpose', purpose);
         formData.append('lab', lab);
+        if (pc) {
+            formData.append('pc_number', pc);
+        }
 
         var response = await fetch('api_start_sitin.php', {
             method: 'POST',

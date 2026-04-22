@@ -61,6 +61,9 @@ switch ($action) {
     case 'delete_all_feedback':
         deleteAllFeedback();
         break;
+    case 'leaderboard':
+        getLeaderboard();
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -307,6 +310,76 @@ function deleteAllFeedback() {
         $pdo->exec("DELETE FROM feedback");
         
         echo json_encode(['success' => true, 'message' => 'All feedback deleted successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getLeaderboard() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("
+            SELECT 
+                u.id_number,
+                u.lastname,
+                u.firstname,
+                u.middlename,
+                u.course,
+                u.level,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN sr.time_out IS NOT NULL 
+                        THEN (julianday(sr.time_out) - julianday(sr.time_in)) * 24 
+                        ELSE 0 
+                    END
+                ), 0) as total_hours,
+                COALESCE((30 - us.remaining_sessions), 30) as used_sessions
+            FROM users u
+            LEFT JOIN sitin_records sr ON u.id = sr.user_id
+            LEFT JOIN user_sessions us ON u.id = us.user_id
+            WHERE u.id_number != '2664388'
+            GROUP BY u.id
+            ORDER BY total_hours DESC
+        ");
+        
+        $leaderboardData = [];
+        $rank = 1;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $totalHours = round($row['total_hours'], 2);
+            $usedSessions = intval($row['used_sessions']);
+            $totalScore = (0.60 * $totalHours) + (0.40 * $usedSessions);
+            
+            $name = trim($row['firstname'] . ' ' . ($row['middlename'] ? $row['middlename'] . ' ' : '') . $row['lastname']);
+            
+            $leaderboardData[] = [
+                'rank' => $rank,
+                'id_number' => $row['id_number'],
+                'name' => $name,
+                'course' => $row['course'],
+                'level' => $row['level'],
+                'hours_spent' => $totalHours,
+                'sessions_used' => $usedSessions,
+                'total_score' => round($totalScore, 2)
+            ];
+            $rank++;
+        }
+        
+        // Sort by total score
+        usort($leaderboardData, function($a, $b) {
+            return $b['total_score'] - $a['total_score'];
+        });
+        
+        // Re-assign ranks after sorting
+        $rankedData = [];
+        $rank = 1;
+        foreach ($leaderboardData as &$entry) {
+            $entry['rank'] = $rank;
+            $rankedData[] = $entry;
+            $rank++;
+        }
+        
+        echo json_encode(['success' => true, 'leaderboard' => $rankedData]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
