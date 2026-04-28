@@ -934,16 +934,30 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         // Poll for new notifications every 30 seconds
         setInterval(loadNavNotifications, 30000);
         
-        // Poll for reservation updates every 15 seconds (checks if reservations should auto-start)
+       // Poll for reservation updates every 15 seconds (checks if reservations should auto-start)
         setInterval(function() {
-          loadReservationLog();
-          loadRemainingSessions();
-          loadNavNotifications(); // Check for new notifications (reservation started)
-          
-          // Check if there's an active sit-in that might have started from a reservation
-          if (hasActiveSitIn) {
-            fetchActiveSitInDetails();
-          }
+           loadReservationLog();
+           loadRemainingSessions();
+           loadNavNotifications(); // Check for new notifications (reservation started)
+           
+           // Check if there's an active sit-in that might have started from a reservation
+           if (hasActiveSitIn) {
+               fetchActiveSitInDetails();
+           } else {
+               // Also check for new active sit-ins created by admin approval
+               fetch('user_dashboard.php?action=get_active_sitin')
+                   .then(res => res.json())
+                   .then(data => {
+                       if (data.success && data.sitin) {
+                           // New active sit-in detected (e.g., from admin reservation approval)
+                           hasActiveSitIn = true;
+                           hasPendingReservation = false;
+                           fetchActiveSitInDetails();
+                           applyRestrictions();
+                       }
+                   })
+                   .catch(err => console.error('Error checking for new sit-in:', err));
+           }
         }, 15000);
         
         // Set minimum date to today
