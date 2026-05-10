@@ -16,24 +16,86 @@ if (!$stmt->fetch()) {
     exit;
 }
 
-// Get all students
+// Pagination parameters
+$perPage = 10;
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$page = max(1, $page);
+$offset = ($page - 1) * $perPage;
+
+// Search parameter
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// CCS filter parameter
+$ccsFilter = isset($_GET['ccs']) ? $_GET['ccs'] : 'all'; // 'all', 'ccs', 'non-ccs'
+
+// Sort parameters
+$sortColumn = isset($_GET['sort']) ? $_GET['sort'] : 'lastname';
+$sortDirection = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'ASC' : 'DESC';
+
+// Allowed sort columns
+$allowedSortColumns = ['id_number', 'firstname', 'lastname', 'level', 'course', 'remaining_sessions'];
+if (!in_array($sortColumn, $allowedSortColumns)) {
+    $sortColumn = 'lastname';
+}
+
+// Define CCS courses
+$ccsCourses = ['BSIT', 'BSCpE', 'BSCE'];
+
+// Build WHERE clause for search and CCS filter
+$whereClause = "u.id_number != '2664388'";
+$params = [];
+
+if ($search !== '') {
+    $whereClause .= " AND (u.id_number LIKE ? OR u.firstname LIKE ? OR u.lastname LIKE ? OR u.course LIKE ? OR u.level LIKE ?)";
+    $searchParam = "%$search%";
+    $params = array_fill(0, 5, $searchParam);
+}
+
+if ($ccsFilter === 'ccs') {
+    $whereClause .= " AND u.course IN (" . implode(',', array_fill(0, count($ccsCourses), '?')) . ")";
+    $params = array_merge($params, $ccsCourses);
+} elseif ($ccsFilter === 'non-ccs') {
+    $whereClause .= " AND u.course NOT IN (" . implode(',', array_fill(0, count($ccsCourses), '?')) . ")";
+    $params = array_merge($params, $ccsCourses);
+}
+
+// Get total count for pagination
+$countSql = "SELECT COUNT(*) FROM users u LEFT JOIN user_sessions us ON u.id = us.user_id WHERE $whereClause";
+$countStmt = $pdo->prepare($countSql);
+$countStmt->execute($params);
+$totalStudents = $countStmt->fetchColumn();
+$totalPages = ceil($totalStudents / $perPage);
+
+// If page exceeds total pages, adjust
+if ($page > $totalPages && $totalPages > 0) {
+    $page = $totalPages;
+    $offset = ($page - 1) * $perPage;
+}
+
+// Get students with LIMIT/OFFSET
 $students = [];
 try {
-    $stmt = $pdo->query("
+    $sql = "
         SELECT u.id, u.id_number, u.firstname, u.lastname, u.middlename, u.course, u.level, u.email, u.address, u.created_at,
                COALESCE(us.remaining_sessions, 30) as remaining_sessions
         FROM users u 
         LEFT JOIN user_sessions us ON u.id = us.user_id
-        WHERE u.id_number != '2664388'
-        ORDER BY u.lastname, u.firstname
-    ");
+        WHERE $whereClause
+        ORDER BY u.$sortColumn $sortDirection
+        LIMIT $perPage OFFSET $offset
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $students = $stmt->fetchAll();
 } catch (PDOException $e) {
     // Ignore errors
 }
 
+// Toggle sort direction helper
+$oppositeDir = $sortDirection === 'ASC' ? 'desc' : 'asc';
+$sortDirectionIcon = $sortDirection === 'ASC' ? '↑' : '↓';
+
 $adminName = $_SESSION['name'] ?? 'Admin';
-$autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal';
 ?>
 <!doctype html>
 <html lang="en">
@@ -284,6 +346,21 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
             background: #138496;
         }
 
+        .filter-dropdown {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .filter-dropdown:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
         .form-group {
             margin-bottom: 15px;
             text-align: left;
@@ -361,6 +438,102 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                 opacity: 1;
             }
         }
+
+        /* Pagination Styles */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pagination-info {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-btn {
+            padding: 8px 12px;
+            background: #fff;
+            border: 1px solid #ddd;
+            color: #007bff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .pagination-btn:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .pagination-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+            font-weight: bold;
+        }
+
+        .pagination-btn:disabled {
+            color: #ccc;
+            pointer-events: none;
+            background: #f5f5f5;
+            border-color: #ddd;
+        }
+
+        .pagination-ellipsis {
+            padding: 8px 5px;
+            color: #666;
+        }
+
+        /* Form styling for search toolbar */
+        .table-toolbar form {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .table-toolbar .toolbar-left,
+        .table-toolbar .toolbar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .course-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .course-badge.ccs {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .course-badge.non-ccs {
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -388,24 +561,33 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
     <div class="admin-content">
         <h1>Registered Students</h1>
         
-        <div class="table-toolbar">
+        <form method="GET" class="table-toolbar">
             <div class="toolbar-left">
-                <button class="btn-primary" onclick="openAddModal()">+ Add Student</button>
-                <button class="btn-secondary" onclick="resetAllSessions()">Reset All Sessions</button>
+                <button type="button" class="btn-primary" onclick="openAddModal()">+ Add Student</button>
+                <button type="button" class="btn-secondary" onclick="resetAllSessions()">Reset All Sessions</button>
             </div>
             <div class="toolbar-right">
-                <input type="text" id="tableSearch" placeholder="Search..." onkeyup="filterTable()" class="search-box">
+                <select name="ccs" class="filter-dropdown" onchange="this.form.submit()">
+                    <option value="all" <?php echo $ccsFilter === 'all' ? 'selected' : ''; ?>>All Students</option>
+                    <option value="ccs" <?php echo $ccsFilter === 'ccs' ? 'selected' : ''; ?>>CCS Only</option>
+                    <option value="non-ccs" <?php echo $ccsFilter === 'non-ccs' ? 'selected' : ''; ?>>Non-CCS</option>
+                </select>
+                <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Search..." class="search-box">
+                <button type="submit" class="btn-secondary">Search</button>
+                <?php if ($search !== '' || $ccsFilter !== 'all'): ?>
+                <a href="admin_students.php?page=1" class="btn-secondary" style="text-decoration:none;margin-left:5px;">Clear</a>
+                <?php endif; ?>
             </div>
-        </div>
+        </form>
         
         <table class="data-table" id="studentsTable">
             <thead>
                 <tr>
-                    <th onclick="sortTable(0)" style="cursor: pointer;">ID Number &#x2195;</th>
-                    <th onclick="sortTable(1)" style="cursor: pointer;">Name &#x2195;</th>
-                    <th onclick="sortTable(2)" style="cursor: pointer;">Year Level &#x2195;</th>
-                    <th onclick="sortTable(3)" style="cursor: pointer;">Course &#x2195;</th>
-                    <th onclick="sortTable(4)" style="cursor: pointer;">Remaining Sessions &#x2195;</th>
+                    <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=id_number&dir=<?php echo ($sortColumn === 'id_number') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">ID Number <?php echo ($sortColumn === 'id_number') ? $sortDirectionIcon : ''; ?></a></th>
+                    <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=firstname&dir=<?php echo ($sortColumn === 'firstname') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Name <?php echo ($sortColumn === 'firstname' || $sortColumn === 'lastname') ? $sortDirectionIcon : ''; ?></a></th>
+                    <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=level&dir=<?php echo ($sortColumn === 'level') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Year Level <?php echo ($sortColumn === 'level') ? $sortDirectionIcon : ''; ?></a></th>
+                    <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=course&dir=<?php echo ($sortColumn === 'course') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Course <?php echo ($sortColumn === 'course') ? $sortDirectionIcon : ''; ?></a></th>
+                    <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=remaining_sessions&dir=<?php echo ($sortColumn === 'remaining_sessions') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Remaining Sessions <?php echo ($sortColumn === 'remaining_sessions') ? $sortDirectionIcon : ''; ?></a></th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -415,7 +597,15 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                     <td><?php echo htmlspecialchars($student['id_number']); ?></td>
                     <td><?php echo htmlspecialchars($student['firstname'] . ' ' . $student['lastname']); ?></td>
                     <td><?php echo htmlspecialchars($student['level']); ?></td>
-                    <td><?php echo htmlspecialchars($student['course']); ?></td>
+                    <td><?php
+                        $course = htmlspecialchars($student['course']);
+                        $isCCS = in_array($student['course'], ['BSIT', 'BSCpE', 'BSCE']);
+                        if ($isCCS) {
+                            echo '<span class="course-badge ccs">' . $course . '</span>';
+                        } else {
+                            echo '<span class="course-badge non-ccs">' . $course . '</span>';
+                        }
+                    ?></td>
                     <td><span class="sessions-badge <?php echo $student['remaining_sessions'] <= 5 ? 'low' : ($student['remaining_sessions'] <= 15 ? 'medium' : ''); ?>"><?php echo $student['remaining_sessions']; ?></span></td>
                     <td>
                         <button class="btn-small btn-edit" onclick="openEditModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['id_number']); ?>', '<?php echo htmlspecialchars($student['firstname']); ?>', '<?php echo htmlspecialchars($student['lastname']); ?>', '<?php echo htmlspecialchars($student['middlename'] ?? ''); ?>', '<?php echo htmlspecialchars($student['course']); ?>', '<?php echo htmlspecialchars($student['level']); ?>', '<?php echo htmlspecialchars($student['email'] ?? ''); ?>', '<?php echo htmlspecialchars($student['address'] ?? ''); ?>', <?php echo $student['remaining_sessions']; ?>)">Edit</button>
@@ -424,66 +614,57 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
                 </tr>
                 <?php endforeach; ?>
             </tbody>
-        </table>
-        
-        <?php if (empty($students)): ?>
-        <p class="no-results">No students registered yet.</p>
-        <?php endif; ?>
-    </div>
+         </table>
+         
+         <?php if (empty($students)): ?>
+         <p class="no-results">No students registered yet.</p>
+         <?php endif; ?>
+
+         <!-- Pagination -->
+         <?php if ($totalPages > 1): ?>
+         <div class="pagination-container">
+             <div class="pagination-info">
+                 Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $perPage, $totalStudents); ?> of <?php echo $totalStudents; ?> students
+             </div>
+             <div class="pagination-controls">
+                 <?php if ($page > 1): ?>
+                     <a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn">First</a>
+                     <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn">Prev</a>
+                 <?php endif; ?>
+
+                 <?php
+                 $startPage = max(1, $page - 2);
+                 $endPage = min($totalPages, $page + 2);
+                 
+                 if ($startPage > 1) {
+                     echo '<a href="?page=1&search=' . urlencode($search) . '&ccs=' . $ccsFilter . '&sort=' . $sortColumn . '&dir=' . $sortDirection . '" class="pagination-btn">1</a>';
+                     if ($startPage > 2) echo '<span class="pagination-ellipsis">...</span>';
+                 }
+                 
+                 for ($i = $startPage; $i <= $endPage; $i++):
+                 ?>
+                     <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn <?php echo ($i == $page) ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                 <?php endfor; ?>
+                 
+                 <?php if ($endPage < $totalPages): ?>
+                     <?php if ($endPage < $totalPages - 1) echo '<span class="pagination-ellipsis">...</span>'; ?>
+                     <a href="?page=<?php echo $totalPages; ?>&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn"><?php echo $totalPages; ?></a>
+                 <?php endif; ?>
+
+                 <?php if ($page < $totalPages): ?>
+                     <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn">Next</a>
+                     <a href="?page=<?php echo $totalPages; ?>&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=<?php echo $sortColumn; ?>&dir=<?php echo $sortDirection; ?>" class="pagination-btn">Last</a>
+                 <?php endif; ?>
+             </div>
+         </div>
+         <?php endif; ?>
+     </div>
 
     <!-- Include shared search modal -->
     <?php include 'search_modal.php'; ?>
 
     <script>
-        // Table Sorting
-        var sortDirections = [true, true, true, true, true]; // true = ascending, false = descending
-        
-        // Table Filter
-        function filterTable() {
-            var input = document.getElementById('tableSearch');
-            var filter = input.value.toLowerCase();
-            var table = document.getElementById('studentsTable');
-            var tbody = table.querySelector('tbody');
-            var rows = tbody.querySelectorAll('tr');
-            
-            rows.forEach(function(row) {
-                var text = row.textContent.toLowerCase();
-                if (text.indexOf(filter) > -1) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-        
-        function sortTable(columnIndex) {
-            var table = document.getElementById('studentsTable');
-            var tbody = table.querySelector('tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            
-            sortDirections[columnIndex] = !sortDirections[columnIndex];
-            var direction = sortDirections[columnIndex] ? 1 : -1;
-            
-            rows.sort(function(a, b) {
-                var aText = a.cells[columnIndex].textContent.trim();
-                var bText = b.cells[columnIndex].textContent.trim();
-                
-                // For numeric columns (ID Number and Remaining Sessions)
-                if (columnIndex === 0 || columnIndex === 4) {
-                    var aNum = parseInt(aText) || 0;
-                    var bNum = parseInt(bText) || 0;
-                    return direction * (aNum - bNum);
-                }
-                
-                return direction * aText.localeCompare(bText);
-            });
-            
-            rows.forEach(function(row) {
-                tbody.appendChild(row);
-            });
-        }
-
-        // Add Student Modal Functions
+        // Modal functions - no client-side sorting/filtering needed
         function openAddModal() {
             document.getElementById('addIdNumber').value = '';
             document.getElementById('addFirstname').value = '';
