@@ -51,6 +51,8 @@ $currentUser = [
     'address' => $user['address']
 ];
 
+$canReserve = (bool)$user['can_reserve'];
+
 // Get or create user sessions
 $sessionStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
 $sessionStmt->execute([$_SESSION['user_id']]);
@@ -90,10 +92,11 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
       if (phpUser) {
         currentUser = phpUser;
       }
-      let remainingSessions = <?php echo $remainingSessions; ?>;
-      let hasActiveSitIn = <?php echo $hasActiveSitIn ? 'true' : 'false'; ?>;
-      let hasPendingReservation = <?php echo $hasPendingReservation ? 'true' : 'false'; ?>;
-      let activeSitInData = null;
+let remainingSessions = <?php echo $remainingSessions; ?>;
+       let hasActiveSitIn = <?php echo $hasActiveSitIn ? 'true' : 'false'; ?>;
+       let hasPendingReservation = <?php echo $hasPendingReservation ? 'true' : 'false'; ?>;
+       let canReserve = <?php echo $canReserve ? 'true' : 'false'; ?>;
+       let activeSitInData = null;
     </script>
     <style>
       .reservation-page {
@@ -308,11 +311,56 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
         background: #0056b3;
       }
 .pc-select-btn:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-      }
+         background: #ccc;
+         cursor: not-allowed;
+       }
 
-      .tab-btn {
+       /* Toggle Switch Styles */
+       .toggle-switch {
+         position: relative;
+         display: inline-block;
+         width: 56px;
+         height: 30px;
+       }
+       .toggle-switch input {
+         opacity: 0;
+         width: 0;
+         height: 0;
+       }
+       .toggle-slider {
+         position: absolute;
+         cursor: pointer;
+         top: 0;
+         left: 0;
+         right: 0;
+         bottom: 0;
+         background-color: #ccc;
+         transition: 0.3s;
+         border-radius: 30px;
+       }
+       .toggle-slider:before {
+         position: absolute;
+         content: "";
+         height: 24px;
+         width: 24px;
+         left: 3px;
+         bottom: 3px;
+         background-color: white;
+         transition: 0.3s;
+         border-radius: 50%;
+       }
+       .toggle-switch input:checked + .toggle-slider {
+         background-color: #007bff;
+       }
+       .toggle-switch input:checked + .toggle-slider:before {
+         transform: translateX(26px);
+       }
+       .toggle-switch input:disabled + .toggle-slider {
+         opacity: 0.6;
+         cursor: not-allowed;
+       }
+
+       .tab-btn {
         padding: 12px 20px;
         background: #f8f9fa;
         border: none;
@@ -657,9 +705,23 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
           <span class="label">Name:</span>
           <span class="user-name"><?php echo htmlspecialchars($currentUser['name']); ?></span>
         </div>
-      </div>
+</div>
 
-      <!-- Tab Navigation -->
+       <!-- Reservation Toggle -->
+       <div class="form-section reservation-toggle-section">
+         <div style="display: flex; justify-content: space-between; align-items: center;">
+           <div>
+             <strong>Enable Reservation</strong>
+             <p style="font-size: 13px; color: #666; margin: 0;">Allow this user to make reservations and start sit-ins</p>
+           </div>
+           <label class="toggle-switch">
+             <input type="checkbox" id="reservation-toggle" <?php echo $canReserve ? 'checked' : ''; ?> onchange="toggleReservation()">
+             <span class="toggle-slider"></span>
+           </label>
+         </div>
+       </div>
+
+       <!-- Tab Navigation -->
       <div style="display: flex; gap: 5px; margin-bottom: 15px;">
         <button class="tab-btn active" id="tab-instant" onclick="switchTab('instant')">Instant Sit-In</button>
         <button class="tab-btn" id="tab-reserve" onclick="switchTab('reserve')">Make Reservation</button>
@@ -1053,12 +1115,71 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
           sitinSection.innerHTML = '<div class="alert-message">You currently have an active sit-in. Please end it before starting a new one.</div>';
         }
 
-        // If user has pending reservation, disable reservation form
-        if (hasPendingReservation) {
-          const reservationSection = document.getElementById('reservation-section');
-          reservationSection.innerHTML = '<div class="alert-message">You already have a pending reservation. Please wait for it to be completed or cancelled before making another.</div>';
-        }
-      }
+// If user has pending reservation, disable reservation form
+         if (hasPendingReservation) {
+           const reservationSection = document.getElementById('reservation-section');
+           reservationSection.innerHTML = '<div class="alert-message">You already have a pending reservation. Please wait for it to be completed or cancelled before making another.</div>';
+         }
+
+         // Disable reservation tabs if can_reserve is false
+         if (!canReserve) {
+           const reserveTab = document.getElementById('tab-reserve');
+           const instantTab = document.getElementById('tab-instant');
+           if (reserveTab) {
+             reserveTab.style.display = 'none';
+           }
+           if (instantTab) {
+             instantTab.style.display = 'none';
+           }
+           // If reserve tab was active, switch to log tab
+           if (currentTab === 'reserve' || currentTab === 'instant') {
+             switchTab('log');
+           }
+         }
+       }
+
+       function toggleReservation() {
+         const toggle = document.getElementById('reservation-toggle');
+         const newStatus = toggle.checked ? 1 : 0;
+
+         fetch('user_dashboard.php?action=toggle_reservation', {
+           method: 'POST',
+           headers: {'Content-Type': 'application/json'},
+           body: JSON.stringify({
+             user_id: <?php echo $_SESSION['user_id']; ?>,
+             can_reserve: newStatus
+           })
+         })
+         .then(res => res.json())
+         .then(data => {
+           if (data.success) {
+             canReserve = toggle.checked;
+             if (!canReserve) {
+               // Disable tabs and switch to log
+               const reserveTab = document.getElementById('tab-reserve');
+               const instantTab = document.getElementById('tab-instant');
+               if (reserveTab) reserveTab.style.display = 'none';
+               if (instantTab) instantTab.style.display = 'none';
+               if (currentTab === 'reserve' || currentTab === 'instant') {
+                 switchTab('log');
+               }
+             } else {
+               // Re-enable tabs
+               const reserveTab = document.getElementById('tab-reserve');
+               const instantTab = document.getElementById('tab-instant');
+               if (reserveTab) reserveTab.style.display = '';
+               if (instantTab) instantTab.style.display = '';
+             }
+           } else {
+             alert(data.message || 'Failed to update reservation setting');
+             toggle.checked = !toggle.checked;
+           }
+         })
+         .catch(err => {
+           console.error('Error:', err);
+           toggle.checked = !toggle.checked;
+         });
+       }
 
       // Load remaining sessions
       function loadRemainingSessions() {

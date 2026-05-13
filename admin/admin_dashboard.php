@@ -420,12 +420,21 @@ function approveReservation() {
          $stmt->execute([$reservationId]);
          $reservation = $stmt->fetch();
          
-         if (!$reservation) {
-             echo json_encode(['success' => false, 'message' => 'Reservation not found']);
-             return;
-         }
-         
-         // Check if user already has an active sit-in
+if (!$reservation) {
+              echo json_encode(['success' => false, 'message' => 'Reservation not found']);
+              return;
+          }
+
+          // Check if user is allowed to have reservations
+          $canReserveStmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
+          $canReserveStmt->execute([$reservation['user_id']]);
+          $canReserveUser = $canReserveStmt->fetch();
+          if ($canReserveUser && !$canReserveUser['can_reserve']) {
+              echo json_encode(['success' => false, 'message' => 'Reservation is disabled for this student. Cannot approve.']);
+              return;
+          }
+
+          // Check if user already has an active sit-in
          $checkStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND reservation_id = ?");
          $checkStmt->execute([$reservation['user_id'], $reservationId]);
          if ($checkStmt->fetch()) {

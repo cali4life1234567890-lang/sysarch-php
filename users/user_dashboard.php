@@ -79,12 +79,15 @@ switch ($action) {
     case 'change_password':
         changePassword();
         break;
-    case 'reset_all_passwords':
-        resetAllPasswords();
-        break;
-    case 'leaderboard':
-        getLeaderboard();
-        break;
+case 'reset_all_passwords':
+         resetAllPasswords();
+         break;
+     case 'toggle_reservation':
+         toggleReservation();
+         break;
+     case 'leaderboard':
+         getLeaderboard();
+         break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -431,12 +434,21 @@ function startSitIn() {
     $purpose = $input['purpose'] ?? '';
     $pc_number = $input['pc_number'] ?? null;
     
-    if (empty($lab) || empty($purpose)) {
-        echo json_encode(['success' => false, 'message' => 'Lab and purpose are required']);
-        return;
-    }
-    
-    // Check if already has ongoing sit-in
+if (empty($lab) || empty($purpose)) {
+         echo json_encode(['success' => false, 'message' => 'Lab and purpose are required']);
+         return;
+     }
+
+     // Check if user is allowed to start sit-in (reservation)
+     $stmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
+     $stmt->execute([$_SESSION['user_id']]);
+     $user = $stmt->fetch();
+     if ($user && !$user['can_reserve']) {
+         echo json_encode(['success' => false, 'message' => 'Reservation is disabled for your account. Please contact admin.']);
+         return;
+     }
+
+     // Check if already has ongoing sit-in
     $stmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
     $stmt->execute([$_SESSION['user_id']]);
     if ($stmt->fetch()) {
@@ -613,56 +625,65 @@ function getReservations() {
 }
 
 function makeReservation() {
-    global $pdo;
-    $input = json_decode(file_get_contents('php://input'), true);
-    
-    $lab = $input['lab'] ?? '';
-    $date = $input['date'] ?? '';
-    $startTime = $input['start_time'] ?? '';
-    $endTime = $input['end_time'] ?? '';
-    $purpose = $input['purpose'] ?? '';
-    
-    if (empty($lab) || empty($date) || empty($startTime) || empty($endTime)) {
-        echo json_encode(['success' => false, 'message' => 'All fields are required']);
-        return;
-    }
-    
-    // Create reservations table if not exists with pc_number column
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS reservations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            lab_number TEXT NOT NULL,
-            pc_number INTEGER,
-            reservation_date DATE NOT NULL,
-            start_time TIME NOT NULL,
-            end_time TIME NOT NULL,
-            purpose TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    ");
-    
-    // Add pc_number column if it doesn't exist
-    try {
-        $pdo->exec("ALTER TABLE reservations ADD COLUMN pc_number INTEGER");
-    } catch (PDOException $e) {
-        // Column might already exist, ignore
-    }
-    
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO reservations (user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$_SESSION['user_id'], $lab, null, $date, $startTime, $endTime, $purpose]);
-        
-        echo json_encode(['success' => true, 'message' => 'Reservation submitted successfully']);
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-    }
-}
+     global $pdo;
+     $input = json_decode(file_get_contents('php://input'), true);
+
+     $lab = $input['lab'] ?? '';
+     $date = $input['date'] ?? '';
+     $startTime = $input['start_time'] ?? '';
+     $endTime = $input['end_time'] ?? '';
+     $purpose = $input['purpose'] ?? '';
+
+     if (empty($lab) || empty($date) || empty($startTime) || empty($endTime)) {
+         echo json_encode(['success' => false, 'message' => 'All fields are required']);
+         return;
+     }
+
+     // Check if user is allowed to make reservations
+     $stmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
+     $stmt->execute([$_SESSION['user_id']]);
+     $user = $stmt->fetch();
+     if ($user && !$user['can_reserve']) {
+         echo json_encode(['success' => false, 'message' => 'Reservation is disabled for your account. Please contact admin.']);
+         return;
+     }
+
+     // Create reservations table if not exists with pc_number column
+     $pdo->exec("
+         CREATE TABLE IF NOT EXISTS reservations (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             user_id INTEGER NOT NULL,
+             lab_number TEXT NOT NULL,
+             pc_number INTEGER,
+             reservation_date DATE NOT NULL,
+             start_time TIME NOT NULL,
+             end_time TIME NOT NULL,
+             purpose TEXT,
+             status TEXT DEFAULT 'pending',
+             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+             FOREIGN KEY (user_id) REFERENCES users(id)
+         )
+     ");
+
+     // Add pc_number column if it doesn't exist
+     try {
+         $pdo->exec("ALTER TABLE reservations ADD COLUMN pc_number INTEGER");
+     } catch (PDOException $e) {
+         // Column might already exist, ignore
+     }
+
+     try {
+         $stmt = $pdo->prepare("
+             INSERT INTO reservations (user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+         ");
+         $stmt->execute([$_SESSION['user_id'], $lab, null, $date, $startTime, $endTime, $purpose]);
+
+         echo json_encode(['success' => true, 'message' => 'Reservation submitted successfully']);
+     } catch (PDOException $e) {
+         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+     }
+ }
 
 function cancelReservation() {
     global $pdo;
@@ -935,20 +956,29 @@ function reservePc() {
     $endTime = $input['end_time'] ?? '';
     $purpose = $input['purpose'] ?? '';
     
-    if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empty($endTime)) {
-        echo json_encode(['success' => false, 'message' => 'All fields including PC selection are required']);
-        return;
-    }
-    
-    // Check if PC is available
-    $checkStmt = $pdo->prepare("SELECT status FROM lab_pc_status WHERE lab_number = ? AND pc_number = ?");
-    $checkStmt->execute([$lab, $pcNumber]);
-    $pcStatus = $checkStmt->fetch();
-    
-    if (!$pcStatus || $pcStatus['status'] !== 'available') {
-        echo json_encode(['success' => false, 'message' => 'Selected PC is not available']);
-        return;
-    }
+if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empty($endTime)) {
+         echo json_encode(['success' => false, 'message' => 'All fields including PC selection are required']);
+         return;
+     }
+
+     // Check if user is allowed to make reservations
+     $stmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
+     $stmt->execute([$_SESSION['user_id']]);
+     $user = $stmt->fetch();
+     if ($user && !$user['can_reserve']) {
+         echo json_encode(['success' => false, 'message' => 'Reservation is disabled for your account. Please contact admin.']);
+         return;
+     }
+
+     // Check if PC is available
+     $checkStmt = $pdo->prepare("SELECT status FROM lab_pc_status WHERE lab_number = ? AND pc_number = ?");
+     $checkStmt->execute([$lab, $pcNumber]);
+     $pcStatus = $checkStmt->fetch();
+
+     if (!$pcStatus || $pcStatus['status'] !== 'available') {
+         echo json_encode(['success' => false, 'message' => 'Selected PC is not available']);
+         return;
+     }
     
     // Create reservations table if not exists with pc_number column
     $pdo->exec("
@@ -990,6 +1020,39 @@ function reservePc() {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
+
+ function toggleReservation() {
+     global $pdo;
+     
+     $input = json_decode(file_get_contents('php://input'), true);
+     $targetUserId = $input['user_id'] ?? null;
+     $canReserve = $input['can_reserve'] ?? null;
+     
+     if ($targetUserId === null || $canReserve === null) {
+         echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+         return;
+     }
+     
+     $isAdmin = false;
+     $stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ? AND id_number = '2664388'");
+     $stmt->execute([$_SESSION['user_id']]);
+     if ($stmt->fetch()) {
+         $isAdmin = true;
+     }
+     
+     if (!$isAdmin && $targetUserId != $_SESSION['user_id']) {
+         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+         return;
+     }
+     
+     try {
+         $stmt = $pdo->prepare("UPDATE users SET can_reserve = ? WHERE id = ?");
+         $stmt->execute([$canReserve ? 1 : 0, $targetUserId]);
+         echo json_encode(['success' => true, 'message' => 'Reservation setting updated']);
+     } catch (PDOException $e) {
+         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+     }
+ }
 
 function resetAllPasswords() {
     global $pdo;

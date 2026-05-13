@@ -26,6 +26,7 @@ $level = $_POST['level'] ?? '';
 $email = $_POST['email'] ?? '';
 $address = $_POST['address'] ?? '';
 $sessions = $_POST['sessions'] ?? 30;
+$can_reserve = $_POST['can_reserve'] ?? 1;
 
 if (!$id || !$firstname || !$lastname || !$course || !$level) {
     echo json_encode(['success' => false, 'message' => 'Missing required fields']);
@@ -33,13 +34,13 @@ if (!$id || !$firstname || !$lastname || !$course || !$level) {
 }
 
 try {
-    // Update user
+    // Update user with can_reserve field
     $stmt = $pdo->prepare("
-        UPDATE users 
-        SET firstname = ?, lastname = ?, middlename = ?, course = ?, level = ?, email = ?, address = ?
+        UPDATE users
+        SET firstname = ?, lastname = ?, middlename = ?, course = ?, level = ?, email = ?, address = ?, can_reserve = ?
         WHERE id = ?
     ");
-    $stmt->execute([$firstname, $lastname, $middlename, $course, $level, $email, $address, $id]);
+    $stmt->execute([$firstname, $lastname, $middlename, $course, $level, $email, $address, $can_reserve, $id]);
 
     // Update or insert remaining sessions
     $stmt = $pdo->prepare("SELECT id FROM user_sessions WHERE user_id = ?");

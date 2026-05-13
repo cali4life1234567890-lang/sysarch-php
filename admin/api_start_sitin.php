@@ -39,8 +39,17 @@ try {
     }
     
     $userId = $user['id'];
-    
-    // Get remaining sessions
+
+     // Check if user is allowed to have reservations
+     $canReserveStmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
+     $canReserveStmt->execute([$userId]);
+     $canReserveUser = $canReserveStmt->fetch();
+     if ($canReserveUser && !$canReserveUser['can_reserve']) {
+         echo json_encode(['success' => false, 'message' => 'Reservation is disabled for this student. Cannot start sit-in.']);
+         exit;
+     }
+
+     // Get remaining sessions
     $stmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
     $stmt->execute([$userId]);
     $session = $stmt->fetch();

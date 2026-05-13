@@ -9,7 +9,7 @@ try {
     $pdo = new PDO('sqlite:' . DB_PATH);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    
+
     // Create tables if they don't exist
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS users (
@@ -23,10 +23,11 @@ try {
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             address TEXT,
+            can_reserve INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ");
-    
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +38,7 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
-    
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS sitin_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,14 +51,14 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
-    
+
     // Add pc_number column if it doesn't exist (for existing tables)
     try {
         $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
     } catch (PDOException $e) {
         // Column might already exist, ignore
     }
-    
+
     // Create user_sessions table for tracking remaining sit-in sessions
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS user_sessions (
@@ -81,7 +82,7 @@ try {
             FOREIGN KEY (sitin_record_id) REFERENCES sitin_records(id)
         )
     ");
-    
+
     // Create admin account if not exists
     $adminCheck = $pdo->query("SELECT id FROM users WHERE id_number = '2664388'");
     if (!$adminCheck->fetch()) {
@@ -91,7 +92,7 @@ try {
             VALUES ('2664388', 'Admin', 'System', 'Admin', 'BSIT', 4, 'admin@uc.edu', '$hashedPassword', 'Admin Office')
         ");
     }
-    
+
     // Create lab_pc_status table for tracking PC availability
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS lab_pc_status (
@@ -101,11 +102,11 @@ try {
             status TEXT DEFAULT 'available'
         )
     ");
-    
+
     // Initialize PC status for each lab if not exists
     $labs = ['524', '526', '528', '530', 'MAC'];
     $totalPcsPerLab = 56;
-    
+
     foreach ($labs as $lab) {
         $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM lab_pc_status WHERE lab_number = ?");
         $checkStmt->execute([$lab]);
@@ -116,7 +117,24 @@ try {
             }
         }
     }
-    
+
+    // Create reservations table if not exists
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            lab_number TEXT NOT NULL,
+            pc_number INTEGER,
+            reservation_date DATE NOT NULL,
+            start_time TIME NOT NULL,
+            end_time TIME NOT NULL,
+            purpose TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ");
+
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }

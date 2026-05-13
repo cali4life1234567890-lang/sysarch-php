@@ -77,8 +77,9 @@ $students = [];
 try {
     $sql = "
         SELECT u.id, u.id_number, u.firstname, u.lastname, u.middlename, u.course, u.level, u.email, u.address, u.created_at,
-               COALESCE(us.remaining_sessions, 30) as remaining_sessions
-        FROM users u 
+               COALESCE(us.remaining_sessions, 30) as remaining_sessions,
+               COALESCE(u.can_reserve, 1) as can_reserve
+        FROM users u
         LEFT JOIN user_sessions us ON u.id = us.user_id
         WHERE $whereClause
         ORDER BY u.$sortColumn $sortDirection
@@ -608,7 +609,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                     ?></td>
                     <td><span class="sessions-badge <?php echo $student['remaining_sessions'] <= 5 ? 'low' : ($student['remaining_sessions'] <= 15 ? 'medium' : ''); ?>"><?php echo $student['remaining_sessions']; ?></span></td>
                     <td>
-                        <button class="btn-small btn-edit" onclick="openEditModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['id_number']); ?>', '<?php echo htmlspecialchars($student['firstname']); ?>', '<?php echo htmlspecialchars($student['lastname']); ?>', '<?php echo htmlspecialchars($student['middlename'] ?? ''); ?>', '<?php echo htmlspecialchars($student['course']); ?>', '<?php echo htmlspecialchars($student['level']); ?>', '<?php echo htmlspecialchars($student['email'] ?? ''); ?>', '<?php echo htmlspecialchars($student['address'] ?? ''); ?>', <?php echo $student['remaining_sessions']; ?>)">Edit</button>
+                        <button class="btn-small btn-edit" onclick="openEditModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['id_number']); ?>', '<?php echo htmlspecialchars($student['firstname']); ?>', '<?php echo htmlspecialchars($student['lastname']); ?>', '<?php echo htmlspecialchars($student['middlename'] ?? ''); ?>', '<?php echo htmlspecialchars($student['course']); ?>', '<?php echo htmlspecialchars($student['level']); ?>', '<?php echo htmlspecialchars($student['email'] ?? ''); ?>', '<?php echo htmlspecialchars($student['address'] ?? ''); ?>', <?php echo $student['remaining_sessions']; ?>, <?php echo $student['can_reserve']; ?>)">Edit</button>
                         <button class="btn-small btn-delete" onclick="confirmDelete(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['firstname'] . ' ' . $student['lastname']); ?>')">Delete</button>
                     </td>
                 </tr>
@@ -752,19 +753,20 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         }
 
         // Edit Modal Functions
-        function openEditModal(id, idno, firstname, lastname, middlename, course, level, email, address, sessions) {
-            document.getElementById('editStudentId').value = id;
-            document.getElementById('editIdNumber').value = idno;
-            document.getElementById('editFirstname').value = firstname;
-            document.getElementById('editLastname').value = lastname;
-            document.getElementById('editMiddlename').value = middlename;
-            document.getElementById('editCourse').value = course;
-            document.getElementById('editLevel').value = level;
-            document.getElementById('editEmail').value = email;
-            document.getElementById('editAddress').value = address;
-            document.getElementById('editSessions').value = sessions;
-            document.getElementById('editModal').classList.add('active');
-        }
+function openEditModal(id, idno, firstname, lastname, middlename, course, level, email, address, sessions, canReserve) {
+             document.getElementById('editStudentId').value = id;
+             document.getElementById('editIdNumber').value = idno;
+             document.getElementById('editFirstname').value = firstname;
+             document.getElementById('editLastname').value = lastname;
+             document.getElementById('editMiddlename').value = middlename;
+             document.getElementById('editCourse').value = course;
+             document.getElementById('editLevel').value = level;
+             document.getElementById('editEmail').value = email;
+             document.getElementById('editAddress').value = address;
+             document.getElementById('editSessions').value = sessions;
+             document.getElementById('editCanReserve').checked = canReserve;
+             document.getElementById('editModal').classList.add('active');
+         }
 
         function closeEditModal() {
             document.getElementById('editModal').classList.remove('active');
@@ -779,9 +781,10 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             var level = document.getElementById('editLevel').value;
             var email = document.getElementById('editEmail').value.trim();
             var address = document.getElementById('editAddress').value.trim();
-            var sessions = parseInt(document.getElementById('editSessions').value);
+var sessions = parseInt(document.getElementById('editSessions').value);
+             var canReserve = document.getElementById('editCanReserve').checked ? 1 : 0;
 
-            if (!firstname || !lastname || !course || !level) {
+             if (!firstname || !lastname || !course || !level) {
                 alert('Please fill in all required fields');
                 return;
             }
@@ -795,10 +798,11 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                 formData.append('course', course);
                 formData.append('level', level);
                 formData.append('email', email);
-                formData.append('address', address);
-                formData.append('sessions', sessions);
+formData.append('address', address);
+                 formData.append('sessions', sessions);
+                 formData.append('can_reserve', canReserve);
 
-                var response = await fetch('api_update_student.php', {
+                 var response = await fetch('api_update_student.php', {
                     method: 'POST',
                     body: formData
                 });
@@ -1028,11 +1032,17 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                 <label>Address</label>
                 <input type="text" id="editAddress">
             </div>
-            <div class="form-group">
-                <label>Remaining Sessions</label>
-                <input type="number" id="editSessions" min="0" max="999">
-            </div>
-            <button class="btn-primary" onclick="saveStudent()">Save Changes</button>
+<div class="form-group">
+                 <label>Remaining Sessions</label>
+                 <input type="number" id="editSessions" min="0" max="999">
+             </div>
+             <div class="form-group">
+                 <label style="display: flex; align-items: center; gap: 8px;">
+                     <input type="checkbox" id="editCanReserve" style="width: auto;">
+                     <span>Enable Reservation</span>
+                 </label>
+             </div>
+             <button class="btn-primary" onclick="saveStudent()">Save Changes</button>
         </div>
     </div>
 
