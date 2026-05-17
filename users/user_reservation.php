@@ -18,7 +18,7 @@ if (!$stmt->fetch()) {
 }
 
 // Get user data
-$userStmt = $pdo->prepare("SELECT id_number, lastname, firstname, middlename, course, level, email, address FROM users WHERE id = ?");
+$userStmt = $pdo->prepare("SELECT id_number, lastname, firstname, middlename, course, level, email, address, can_reserve FROM users WHERE id = ?");
 $userStmt->execute([$_SESSION['user_id']]);
 $user = $userStmt->fetch();
 

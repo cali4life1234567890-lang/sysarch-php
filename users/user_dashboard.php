@@ -82,6 +82,12 @@ switch ($action) {
 case 'reset_all_passwords':
          resetAllPasswords();
          break;
+     case 'dashboard_stats':
+         getDashboardStats();
+         break;
+     case 'lab_software':
+         getLabSoftware();
+         break;
      case 'toggle_reservation':
          toggleReservation();
          break;
@@ -219,7 +225,7 @@ function getHistory() {
     
     try {
         $query = "
-            SELECT sr.id, sr.lab_number, sr.time_in, sr.time_out, sr.purpose, u.id_number, u.lastname, u.firstname, u.middlename
+            SELECT sr.id, sr.lab_number, sr.pc_number, sr.time_in, sr.time_out, sr.purpose, u.id_number, u.lastname, u.firstname, u.middlename
             FROM sitin_records sr
             JOIN users u ON sr.user_id = u.id
             WHERE sr.user_id = ?
@@ -262,6 +268,7 @@ function getHistory() {
                 'id_number' => $r['id_number'],
                 'name' => $fullName,
                 'lab' => $r['lab_number'],
+                'pc_number' => $r['pc_number'] ? $r['pc_number'] : 'N/A',
                 'time_in' => $r['time_in'],
                 'time_out' => $r['time_out'],
                 'purpose' => $r['purpose'],
@@ -1117,6 +1124,113 @@ function getLeaderboard() {
                 'total_score' => round($totalScore, 2)
             ]
         ]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getDashboardStats() {
+    global $pdo;
+    
+    try {
+        $userId = $_SESSION['user_id'];
+        
+        // 1. Get user details (can_reserve, etc)
+        $userStmt = $pdo->prepare("SELECT id, id_number, firstname, lastname, can_reserve FROM users WHERE id = ?");
+        $userStmt->execute([$userId]);
+        $user = $userStmt->fetch();
+        
+        // 2. Total sit-in hours
+        $hoursStmt = $pdo->prepare("
+            SELECT 
+                COALESCE(SUM(
+                    (julianday(time_out) - julianday(time_in)) * 24
+                ), 0) as total_hours
+            FROM sitin_records 
+            WHERE user_id = ? AND time_out IS NOT NULL
+        ");
+        $hoursStmt->execute([$userId]);
+        $totalHours = round((float)$hoursStmt->fetch()['total_hours'], 2);
+        
+        // 3. Number of sessions
+        $sessionsStmt = $pdo->prepare("SELECT COUNT(*) as session_count FROM sitin_records WHERE user_id = ?");
+        $sessionsStmt->execute([$userId]);
+        $sessionCount = (int)$sessionsStmt->fetch()['session_count'];
+        
+        // 4. Average session duration (in hours)
+        $avgStmt = $pdo->prepare("
+            SELECT 
+                COALESCE(AVG(
+                    (julianday(time_out) - julianday(time_in)) * 24
+                ), 0) as avg_hours
+            FROM sitin_records 
+            WHERE user_id = ? AND time_out IS NOT NULL
+        ");
+        $avgStmt->execute([$userId]);
+        $avgHours = round((float)$avgStmt->fetch()['avg_hours'], 2);
+        
+        // 5. Longest session duration (in hours)
+        $maxStmt = $pdo->prepare("
+            SELECT 
+                COALESCE(MAX(
+                    (julianday(time_out) - julianday(time_in)) * 24
+                ), 0) as max_hours
+            FROM sitin_records 
+            WHERE user_id = ? AND time_out IS NOT NULL
+        ");
+        $maxStmt->execute([$userId]);
+        $maxHours = round((float)$maxStmt->fetch()['max_hours'], 2);
+        
+        // Format avg and max durations nicely
+        $avgFormatted = formatHoursToDuration($avgHours);
+        $maxFormatted = formatHoursToDuration($maxHours);
+        
+        // 6. Remaining sessions
+        $remStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+        $remStmt->execute([$userId]);
+        $remResult = $remStmt->fetch();
+        $remainingSessions = $remResult ? (int)$remResult['remaining_sessions'] : 30;
+        
+        echo json_encode([
+            'success' => true,
+            'stats' => [
+                'total_hours' => $totalHours . ' hrs',
+                'session_count' => $sessionCount,
+                'avg_duration' => $avgFormatted,
+                'longest_session' => $maxFormatted,
+                'remaining_sessions' => $remainingSessions,
+                'can_reserve' => $user ? (bool)$user['can_reserve'] : true
+            ]
+        ]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function formatHoursToDuration($hoursDecimal) {
+    if ($hoursDecimal <= 0) return '0m';
+    $hours = floor($hoursDecimal);
+    $minutes = round(($hoursDecimal - $hours) * 60);
+    if ($hours > 0) {
+        return $hours . 'h ' . $minutes . 'm';
+    } else {
+        return $minutes . 'm';
+    }
+}
+
+function getLabSoftware() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    
+    try {
+        if (!empty($lab)) {
+            $stmt = $pdo->prepare("SELECT software_name, version, status FROM lab_software WHERE lab_number = ? ORDER BY software_name");
+            $stmt->execute([$lab]);
+        } else {
+            $stmt = $pdo->query("SELECT lab_number, software_name, version, status FROM lab_software ORDER BY lab_number, software_name");
+        }
+        $software = $stmt->fetchAll();
+        echo json_encode(['success' => true, 'software' => $software]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

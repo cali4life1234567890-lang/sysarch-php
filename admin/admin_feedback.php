@@ -75,6 +75,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             <a href="admin_leaderboard.php">Leaderboard</a>
             <a href="admin_students.php">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
+            <a href="admin_software.php">Software Manager</a>
             <a href="admin_records.php">View Sit-In Records</a>
             <a href="admin_reports.php">Sit-In Reports</a>
             <a href="admin_feedback.php" class="active">Feedback</a>

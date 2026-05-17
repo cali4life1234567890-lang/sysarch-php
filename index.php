@@ -481,71 +481,181 @@ $userJson = json_encode($currentUser);
 
     <!-- User Home Dashboard -->
     <?php if ($currentUser && !$isAdmin): ?>
-    <div id="user-home" class="content-section user-section">
-      <h1>Welcome, <?php echo htmlspecialchars($currentUser['firstname']); ?>!</h1>
+    <div id="user-home" class="content-section user-section premium-dashboard">
+      <!-- Welcome Dashboard Header -->
+      <div class="dashboard-header-premium">
+        <div class="welcome-banner-text">
+          <h1>Welcome back, <span class="student-name-highlight"><?php echo htmlspecialchars($currentUser['firstname']); ?></span>! 👋</h1>
+          <p class="dashboard-subtitle">Monitor your sit-in history, software availability, and make PC reservations in real time.</p>
+        </div>
+        
+        <!-- Reservation Enable Toggle Switch -->
+        <div class="reservation-toggle-card">
+          <div class="toggle-info">
+            <strong>Enable Laboratory Reservations</strong>
+            <p>Allow quick reservations and automatic check-ins</p>
+          </div>
+          <label class="switch-ios">
+            <input type="checkbox" id="dashboard-reservation-toggle" onchange="toggleDashboardReservation(this)">
+            <span class="slider-round"></span>
+          </label>
+        </div>
+      </div>
       
-      <div class="user-home-layout">
-        <!-- Left Column: Student Info + Notification -->
-        <div class="user-home-left">
-          <div class="student-info-card">
-            <h3>Student Information</h3>
-            <div class="student-info-header">
-              <img src="imgs/emp-prof.png" alt="Student Photo" class="student-photo" />
-              <div class="student-info-details">
-                <div class="info-item">
-                  <span class="label">ID Number:</span>
-                  <span class="value" id="home-id-number"><?php echo htmlspecialchars($currentUser['id_number']); ?></span>
-                </div>
-                <div class="info-item">
-                  <span class="label">Name:</span>
-                  <span class="value" id="home-student-name"><?php echo htmlspecialchars($currentUser['name']); ?></span>
-                </div>
-                <div class="info-item">
-                  <span class="label">Course:</span>
-                  <span class="value" id="home-student-course"><?php echo htmlspecialchars($currentUser['course']); ?></span>
-                </div>
-                <div class="info-item">
-                  <span class="label">Level:</span>
-                  <span class="value" id="home-student-level"><?php echo htmlspecialchars($currentUser['level']); ?></span>
-                </div>
-                <div class="info-item">
-                  <span class="label">Email:</span>
-                  <span class="value" id="home-student-email"><?php echo htmlspecialchars($currentUser['email']); ?></span>
-                </div>
-                <div class="info-item">
-                  <span class="label">Remaining Sessions:</span>
-                  <span class="value" id="home-remaining-sessions"><?php echo htmlspecialchars($currentUser['sessions_left']); ?></span>
-                </div>
+      <!-- Statistics Cards Grid -->
+      <div class="stats-premium-grid">
+        <!-- Card 1: Remaining Sessions -->
+        <div class="stat-card-premium remaining-sessions-card">
+          <div class="stat-card-header">
+            <span class="stat-icon-bg">⏳</span>
+            <span class="stat-badge-premium text-glow">Remaining Balance</span>
+          </div>
+          <h2 class="stat-value" id="premium-rem-sessions">--</h2>
+          <p class="stat-desc">Remaining sessions for this semester</p>
+        </div>
+
+        <!-- Card 2: Total Hours -->
+        <div class="stat-card-premium hours-card">
+          <div class="stat-card-header">
+            <span class="stat-icon-bg">⏱️</span>
+            <span class="stat-badge-premium text-glow">Total Sit-In</span>
+          </div>
+          <h2 class="stat-value" id="premium-total-hours">--</h2>
+          <p class="stat-desc">Accumulated active laboratory time</p>
+        </div>
+
+        <!-- Card 3: Sessions Count -->
+        <div class="stat-card-premium sessions-card">
+          <div class="stat-card-header">
+            <span class="stat-icon-bg">💻</span>
+            <span class="stat-badge-premium text-glow">Total Sessions</span>
+          </div>
+          <h2 class="stat-value" id="premium-session-count">--</h2>
+          <p class="stat-desc">Total lab entries logged by system</p>
+        </div>
+
+        <!-- Card 4: Average Duration -->
+        <div class="stat-card-premium average-card">
+          <div class="stat-card-header">
+            <span class="stat-icon-bg">📈</span>
+            <span class="stat-badge-premium text-glow">Avg. Session</span>
+          </div>
+          <h2 class="stat-value" id="premium-avg-duration">--</h2>
+          <p class="stat-desc">Average physical presence per visit</p>
+        </div>
+
+        <!-- Card 5: Longest Session -->
+        <div class="stat-card-premium longest-card">
+          <div class="stat-card-header">
+            <span class="stat-icon-bg">🔥</span>
+            <span class="stat-badge-premium text-glow">Longest Session</span>
+          </div>
+          <h2 class="stat-value" id="premium-longest-session">--</h2>
+          <p class="stat-desc">Your longest single laboratory session</p>
+        </div>
+      </div>
+
+      <!-- Main Dashboard Grid Layout -->
+      <div class="dashboard-main-grid">
+        
+        <!-- Left Pane: Quick Actions & Software Availability -->
+        <div class="dashboard-pane-left">
+          <!-- Active Sit-In / Current Status Card -->
+          <div class="dashboard-content-card active-sitin-card">
+            <h3>🖥️ Current Lab Status & Quick Actions</h3>
+            <div id="premium-active-sitin-container" class="active-sitin-status-box">
+              <p class="status-loading">Checking your active session...</p>
+            </div>
+            
+            <div class="dashboard-quick-links">
+              <a href="users/user_reservation.php" class="btn-dashboard-reserve">
+                <span>📅 Go to Reservations System</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Software Availability Explorer Card -->
+          <div class="dashboard-content-card software-explorer-card">
+            <div class="software-card-header">
+              <h3>🔍 Software Availability per Lab</h3>
+              <div class="software-search-wrapper">
+                <input type="text" id="software-search-input" onkeyup="filterSoftwareList()" placeholder="Search software (e.g. VS Code, NetBeans)...">
+              </div>
+            </div>
+
+            <!-- Lab Switcher Tabs -->
+            <div class="software-lab-tabs">
+              <button class="software-tab active" onclick="switchSoftwareLab('524')">Lab 524</button>
+              <button class="software-tab" onclick="switchSoftwareLab('526')">Lab 526</button>
+              <button class="software-tab" onclick="switchSoftwareLab('528')">Lab 528</button>
+              <button class="software-tab" onclick="switchSoftwareLab('530')">Lab 530</button>
+              <button class="software-tab" onclick="switchSoftwareLab('MAC')">MAC Lab</button>
+            </div>
+
+            <!-- Software list grid container -->
+            <div class="software-grid-container">
+              <div id="software-list-grid" class="software-list-grid">
+                <p class="loading-placeholder">Loading software lists...</p>
               </div>
             </div>
           </div>
         </div>
-        
-        <!-- Middle Column: Announcements -->
-        <div class="user-home-middle">
-          <div class="announcement-card">
-            <h3>📢 Announcements</h3>
-            <div id="announcement-list" class="announcement-list">
-              <p class="no-announcements">No announcements from admin</p>
+
+        <!-- Right Pane: Rules & Session Logs -->
+        <div class="dashboard-pane-right">
+          <!-- Announcements & Rules Container (Stacked) -->
+          <div class="announcements-rules-wrapper">
+            <div class="dashboard-content-card announcements-card-premium">
+              <h3>📢 Announcements</h3>
+              <div id="premium-announcements-list" class="announcement-list-premium">
+                <p class="no-announcements">No announcements from admin</p>
+              </div>
+            </div>
+
+            <div class="dashboard-content-card rules-card-premium">
+              <h3>📋 Rules and Regulations</h3>
+              <div class="rules-list-premium">
+                <p><strong>University of Cebu — CCS Sit-In Rules</strong></p>
+                <ul>
+                  <li>Maintain silence and discipline inside the laboratory.</li>
+                  <li>No personal game playing of any form is permitted.</li>
+                  <li>Downloading and installing unauthorized software is strictly prohibited.</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <!-- Right Column: Rules and Regulations -->
-        <div class="user-home-right">
-          <div class="rules-card">
-            <h3>📋 Laboratory Rules and Regulations</h3>
-            <div class="rules-list">
-              <p><strong>University of Cebu</strong></p>
-              <p><strong>COLLEGE OF INFORMATION & COMPUTER STUDIES</strong></p>
-              <p>To avoid embaressment and maintaion camaraderie with your friends and superiors at the laboratory, please observe the following:</p>
-              <ul>
-                <li>Maintain silence proper decorum, and discipline inside the laboratory. Mobile phones, walkmans, and other personal piece of equpment must be switched off.</li>
-                <li>Games are not allowed inside the lab. This includes computer-related games, card games, and other games that may distrub the operation of the lab.</li>
-                <li>Surfing the internet is allowed only with the permission of the instructor. Downloading and installing of software is strictly prohibited.</li>
-              </ul>
+          
+          <!-- Sessions Table Card -->
+          <div class="dashboard-content-card sessions-log-card">
+            <div class="sessions-header-premium">
+              <h3>🕒 Your Sit-In Session Logs</h3>
+              <select id="sessions-table-filter" onchange="loadPremiumSessions()" class="sessions-filter-select">
+                <option value="all">All Sessions</option>
+                <option value="today">Today</option>
+                <option value="week">Past Week</option>
+                <option value="month">Past Month</option>
+              </select>
+            </div>
+            
+            <div class="table-scroll-container">
+              <table class="data-table-premium">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time In</th>
+                    <th>Time Out</th>
+                    <th>Duration</th>
+                    <th>PC Number</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="premium-sessions-tbody">
+                  <tr><td colspan="6" class="table-loading">Loading session history...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -906,9 +1016,211 @@ $userJson = json_encode($currentUser);
         loadNavNotifications();
         loadAnnouncements();
         loadUserProfilePicture();
+        loadPremiumDashboardData();
         
         // Poll for new notifications every 30 seconds
         setInterval(loadNavNotifications, 30000);
+      }
+
+      // Premium Student Dashboard Functions
+      let activeSoftwareLab = '524';
+      let currentSoftwareList = [];
+
+      function loadPremiumDashboardData() {
+        loadPremiumStats();
+        loadPremiumSessions();
+        switchSoftwareLab(activeSoftwareLab);
+        loadPremiumAnnouncements();
+      }
+
+      function loadPremiumStats() {
+        fetch('users/user_dashboard.php?action=dashboard_stats')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              const stats = data.stats;
+              document.getElementById('premium-rem-sessions').textContent = stats.remaining_sessions;
+              document.getElementById('premium-total-hours').textContent = stats.total_hours;
+              document.getElementById('premium-session-count').textContent = stats.session_count;
+              document.getElementById('premium-avg-duration').textContent = stats.avg_duration;
+              document.getElementById('premium-longest-session').textContent = stats.longest_session;
+              
+              // Set reservation toggle status
+              const toggleEl = document.getElementById('dashboard-reservation-toggle');
+              if (toggleEl) {
+                toggleEl.checked = stats.can_reserve;
+              }
+            }
+          })
+          .catch(err => console.error('Error loading stats:', err));
+      }
+
+      function toggleDashboardReservation(checkbox) {
+        const canReserve = checkbox.checked;
+        
+        fetch('users/user_dashboard.php?action=toggle_reservation', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            user_id: <?php echo json_encode($_SESSION['user_id'] ?? 0); ?>,
+            can_reserve: canReserve
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            showDashboardNotification('success', 'Reservation setting updated!');
+          } else {
+            checkbox.checked = !canReserve; // Revert
+            showDashboardNotification('error', data.message || 'Failed to update setting');
+          }
+        })
+        .catch(err => {
+          checkbox.checked = !canReserve; // Revert
+          console.error('Error toggling reservation:', err);
+        });
+      }
+
+      function showDashboardNotification(type, message) {
+        // Create dynamic floating notification
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `dashboard-floating-alert ${type}`;
+        alertDiv.textContent = message;
+        document.body.appendChild(alertDiv);
+        
+        setTimeout(() => {
+          alertDiv.classList.add('show');
+        }, 100);
+        
+        setTimeout(() => {
+          alertDiv.classList.remove('show');
+          setTimeout(() => {
+            alertDiv.remove();
+          }, 300);
+        }, 3000);
+      }
+
+      function loadPremiumSessions() {
+        const filter = document.getElementById('sessions-table-filter')?.value || 'all';
+        const tbody = document.getElementById('premium-sessions-tbody');
+        if (!tbody) return;
+        
+        fetch(`users/user_dashboard.php?action=history&filter=${filter}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              const history = data.history;
+              if (history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No laboratory sessions found.</td></tr>';
+                return;
+              }
+              
+              let html = '';
+              history.forEach(row => {
+                const statusClass = row.status === 'Completed' ? 'badge-completed' : 'badge-ongoing';
+                const timeOut = row.time_out ? row.time_out.split(' ')[1] : 'Ongoing';
+                const timeIn = row.time_in ? row.time_in.split(' ')[1] : '';
+                const pcNumber = row.pc_number !== undefined ? row.pc_number : 'N/A';
+                
+                html += `<tr>
+                  <td><strong>${row.date}</strong></td>
+                  <td>${timeIn}</td>
+                  <td>${timeOut}</td>
+                  <td>${row.duration || '--'}</td>
+                  <td><span class="pc-badge-premium">${pcNumber}</span></td>
+                  <td><span class="premium-status-badge ${statusClass}">${row.status}</span></td>
+                </tr>`;
+              });
+              tbody.innerHTML = html;
+            }
+          })
+          .catch(err => {
+            tbody.innerHTML = '<tr><td colspan="6" class="table-error">Failed to load session history.</td></tr>';
+            console.error('Error loading sessions:', err);
+          });
+      }
+
+      function switchSoftwareLab(labNumber) {
+        activeSoftwareLab = labNumber;
+        // Update active class on tab buttons
+        document.querySelectorAll('.software-tab').forEach(tab => {
+          tab.classList.remove('active');
+          if (tab.textContent.includes(labNumber) || (labNumber === 'MAC' && tab.textContent.includes('MAC'))) {
+            tab.classList.add('active');
+          }
+        });
+        
+        const grid = document.getElementById('software-list-grid');
+        if (grid) grid.innerHTML = '<p class="loading-placeholder">Fetching software list...</p>';
+        
+        fetch(`users/user_dashboard.php?action=lab_software&lab=${labNumber}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              currentSoftwareList = data.software;
+              displaySoftwareList(currentSoftwareList);
+            }
+          })
+          .catch(err => {
+            if (grid) grid.innerHTML = '<p class="error-placeholder">Failed to load software.</p>';
+            console.error('Error loading software:', err);
+          });
+      }
+
+      function displaySoftwareList(list) {
+        const grid = document.getElementById('software-list-grid');
+        if (!grid) return;
+        
+        if (list.length === 0) {
+          grid.innerHTML = '<p class="no-software">No software listed for this laboratory.</p>';
+          return;
+        }
+        
+        let html = '';
+        list.forEach(sw => {
+          const statusClass = sw.status === 'available' ? 'sw-available' : 'sw-unavailable';
+          const statusText = sw.status === 'available' ? 'Available' : 'Maintenance';
+          html += `<div class="software-item-premium">
+            <div class="sw-header-row">
+              <span class="sw-icon">⚙️</span>
+              <span class="sw-status-indicator ${statusClass}">${statusText}</span>
+            </div>
+            <h4 class="sw-name">${sw.software_name}</h4>
+            <span class="sw-version">v${sw.version || '1.0'}</span>
+          </div>`;
+        });
+        grid.innerHTML = html;
+      }
+
+      function filterSoftwareList() {
+        const query = document.getElementById('software-search-input').value.toLowerCase();
+        const filtered = currentSoftwareList.filter(sw => 
+          sw.software_name.toLowerCase().includes(query)
+        );
+        displaySoftwareList(filtered);
+      }
+
+      function loadPremiumAnnouncements() {
+        const list = document.getElementById('premium-announcements-list');
+        if (!list) return;
+        
+        const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
+        if (announcements.length === 0) {
+          list.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
+          return;
+        }
+        
+        let html = '';
+        announcements.forEach(announcement => {
+          html += `<div class="announcement-item-premium">
+            <div class="announcement-header-premium">
+              <strong>CCS Admin</strong>
+              <span class="announcement-date-premium">${announcement.date}</span>
+            </div>
+            <p>${announcement.text}</p>
+          </div>`;
+        });
+        list.innerHTML = html;
       }
 
       // Load user profile picture from localStorage
@@ -1152,27 +1464,57 @@ $userJson = json_encode($currentUser);
                 alert(data.message);
               }
               
-              const statusEl = document.getElementById('user-current-status');
-              const btnEl = document.getElementById('sitin-action-btn');
+              const container = document.getElementById('premium-active-sitin-container');
+              if (!container) return;
               
               if (data.current_sitin) {
-                let statusText = 'Currently in ' + data.current_sitin.lab + ' (Since: ' + data.current_sitin.time_in + ')';
+                let statusText = `<div class="active-session-banner">
+                  <div class="active-pulse-ring"></div>
+                  <div class="active-session-details">
+                    <span class="active-session-title">Active Sit-In Session</span>
+                    <span class="active-session-desc">Room: <strong>Lab ${data.current_sitin.lab}</strong> (PC #${data.current_sitin.pc_number || 'N/A'})</span>
+                    <span class="active-session-time">Started at: ${data.current_sitin.time_in.split(' ')[1]}</span>
+                  </div>
+                </div>`;
+                
                 if (data.remaining_seconds) {
                   const minutesLeft = Math.floor(data.remaining_seconds / 60);
-                  statusText += ' - ' + minutesLeft + 'min remaining';
+                  statusText += `<p class="session-timer-badge">⏳ Time remaining: <strong>${minutesLeft} min</strong></p>`;
                 }
-                statusEl.textContent = statusText;
-                btnEl.textContent = 'End Sit-In';
-                btnEl.className = 'btn-danger';
-                btnEl.onclick = endSitIn;
+                
+                statusText += `<button class="btn-premium-danger" onclick="endDashboardSitIn()">End Sit-In Session</button>`;
+                container.innerHTML = statusText;
               } else {
-                statusEl.textContent = 'Not in Lab';
-                btnEl.textContent = 'Start Sit-In';
-                btnEl.className = 'btn-primary';
-                btnEl.onclick = handleSitIn;
+                container.innerHTML = `<div class="offline-session-banner">
+                  <span class="offline-icon">🔴</span>
+                  <div class="offline-details">
+                    <span class="offline-title">No Active Session</span>
+                    <span class="offline-desc">You are not currently checked into any laboratory.</span>
+                  </div>
+                </div>`;
               }
             }
           });
+      }
+
+      function endDashboardSitIn() {
+        if (!confirm('Are you sure you want to end your active sit-in session?')) {
+          return;
+        }
+
+        fetch('users/user_dashboard.php?action=end_sitin', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+          if (data.success) {
+            loadCurrentSitIn();
+            loadPremiumDashboardData();
+          }
+        })
+        .catch(err => console.error('Error ending sit-in:', err));
       }
 
       // Load user statistics

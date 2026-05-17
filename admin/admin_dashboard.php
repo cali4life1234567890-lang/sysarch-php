@@ -64,6 +64,27 @@ switch ($action) {
     case 'leaderboard':
         getLeaderboard();
         break;
+    case 'analytics_data':
+        getAnalyticsData();
+        break;
+    case 'ai_recommendations':
+        getAIRecommendations();
+        break;
+    case 'download_report':
+        downloadReport();
+        break;
+    case 'import_software':
+        importSoftware();
+        break;
+    case 'get_software':
+        getSoftware();
+        break;
+    case 'add_software':
+        addSoftware();
+        break;
+    case 'delete_software':
+        deleteSoftware();
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
@@ -625,5 +646,484 @@ function autoTerminateExpiredSitIns() {
         }
     } catch (PDOException $e) {
         // Ignore errors, just log
+    }
+}
+
+function getAnalyticsData() {
+    global $pdo;
+    try {
+        // 1. Weekly traffic (last 7 days of sit-ins)
+        $weeklyTraffic = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-$i days"));
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM sitin_records WHERE date(time_in) = date(?)");
+            $stmt->execute([$date]);
+            $weeklyTraffic[] = [
+                'date' => date('M d', strtotime($date)),
+                'count' => intval($stmt->fetch()['count'])
+            ];
+        }
+
+        // 2. Lab occupancy (current active sit-ins per lab)
+        $labOccupancy = [];
+        $labs = ['524', '526', '528', '530', 'MAC'];
+        foreach ($labs as $lab) {
+            // Count active sit-ins
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM sitin_records WHERE lab_number = ? AND time_out IS NULL");
+            $stmt->execute([$lab]);
+            $activeCount = intval($stmt->fetch()['count']);
+            
+            // Count total capacity (occupied + available)
+            $stmt2 = $pdo->prepare("SELECT COUNT(*) as count FROM lab_pc_status WHERE lab_number = ?");
+            $stmt2->execute([$lab]);
+            $totalCapacity = intval($stmt2->fetch()['count']);
+            if ($totalCapacity == 0) $totalCapacity = 56; // Fallback
+            
+            $labOccupancy[] = [
+                'lab' => 'Lab ' . $lab,
+                'active' => $activeCount,
+                'capacity' => $totalCapacity,
+                'occupancy_rate' => $totalCapacity > 0 ? round(($activeCount / $totalCapacity) * 100, 1) : 0
+            ];
+        }
+
+        // 3. Purpose distribution
+        $stmt = $pdo->query("
+            SELECT purpose, COUNT(*) as count 
+            FROM sitin_records 
+            WHERE purpose IS NOT NULL AND purpose != ''
+            GROUP BY purpose 
+            ORDER BY count DESC 
+            LIMIT 6
+        ");
+        $purposes = $stmt->fetchAll();
+        $purposeData = [];
+        foreach ($purposes as $row) {
+            $purposeData[] = [
+                'purpose' => ucfirst($row['purpose']),
+                'count' => intval($row['count'])
+            ];
+        }
+
+        // 4. Monthly Lab Usage (total records per lab)
+        $labTotalUsage = [];
+        foreach ($labs as $lab) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM sitin_records WHERE lab_number = ?");
+            $stmt->execute([$lab]);
+            $labTotalUsage[] = [
+                'lab' => 'Lab ' . $lab,
+                'count' => intval($stmt->fetch()['count'])
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'weekly_traffic' => $weeklyTraffic,
+            'lab_occupancy' => $labOccupancy,
+            'purpose_distribution' => $purposeData,
+            'lab_total_usage' => $labTotalUsage
+        ]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getAIRecommendations() {
+    global $pdo;
+    try {
+        $recommendations = [];
+
+        // 1. Query for traffic stats per lab
+        $stmt = $pdo->query("SELECT lab_number, COUNT(*) as count FROM sitin_records GROUP BY lab_number ORDER BY count DESC");
+        $labTraffic = $stmt->fetchAll();
+
+        // 2. Query for popular purposes
+        $stmt = $pdo->query("SELECT purpose, COUNT(*) as count FROM sitin_records WHERE purpose IS NOT NULL AND purpose != '' GROUP BY purpose ORDER BY count DESC LIMIT 3");
+        $popularPurposes = $stmt->fetchAll();
+
+        // 3. Lab Occupancy Rate Check
+        $labs = ['524', '526', '528', '530', 'MAC'];
+        $highestOccupancyLab = '';
+        $highestOccupancyRate = -1;
+        $lowestOccupancyLab = '';
+        $lowestOccupancyRate = 999;
+
+        foreach ($labs as $lab) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM sitin_records WHERE lab_number = ? AND time_out IS NULL");
+            $stmt->execute([$lab]);
+            $activeCount = intval($stmt->fetch()['count']);
+            
+            $stmt2 = $pdo->prepare("SELECT COUNT(*) as count FROM lab_pc_status WHERE lab_number = ?");
+            $stmt2->execute([$lab]);
+            $totalCapacity = intval($stmt2->fetch()['count']);
+            if ($totalCapacity == 0) $totalCapacity = 56;
+            
+            $rate = ($activeCount / $totalCapacity) * 100;
+            if ($rate > $highestOccupancyRate) {
+                $highestOccupancyRate = $rate;
+                $highestOccupancyLab = $lab;
+            }
+            if ($rate < $lowestOccupancyRate) {
+                $lowestOccupancyRate = $rate;
+                $lowestOccupancyLab = $lab;
+            }
+        }
+
+        // Generate recommendations dynamically based on stats
+        if (!empty($labTraffic)) {
+            $busiestLab = $labTraffic[0]['lab_number'];
+            $busiestCount = $labTraffic[0]['count'];
+            $totalRecordsStmt = $pdo->query("SELECT COUNT(*) as count FROM sitin_records");
+            $totalRecords = max(1, intval($totalRecordsStmt->fetch()['count']));
+            $busiestPercentage = round(($busiestCount / $totalRecords) * 100, 1);
+
+            $recommendations[] = [
+                'type' => 'occupancy',
+                'title' => 'Lab Traffic Redistribution',
+                'description' => "Lab $busiestLab represents $busiestPercentage% of total logged check-ins ($busiestCount logs), causing higher wear and queue times. We recommend shifting general sit-in students (non-specialized labs) to underutilized rooms such as Lab " . ($lowestOccupancyLab ?: '526') . ".",
+                'impact' => 'Medium Impact',
+                'action_label' => 'View Lab Utilization'
+            ];
+        } else {
+            $recommendations[] = [
+                'type' => 'occupancy',
+                'title' => 'Lab Utilization Optimization',
+                'description' => 'System logs show uniform traffic. Recommend keeping current lab layouts and advising students to sit in Lab 526 and 524 during peak noon hours to prevent local overcrowding.',
+                'impact' => 'Low Impact',
+                'action_label' => 'View Utilization'
+            ];
+        }
+
+        // Software Gap Analysis
+        if (!empty($popularPurposes)) {
+            $topPurpose = strtolower($popularPurposes[0]['purpose']);
+            $topPurposeCount = $popularPurposes[0]['count'];
+            
+            if (strpos($topPurpose, 'python') !== false) {
+                // Python gap analysis
+                $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM lab_software WHERE software_name LIKE '%Python%'");
+                $stmt->execute();
+                $pythonCount = intval($stmt->fetch()['count']);
+                if ($pythonCount < 3) {
+                    $recommendations[] = [
+                        'type' => 'software',
+                        'title' => 'Deploy Python Development Packages',
+                        'description' => "Python programming is currently a top purpose ($topPurposeCount check-ins). However, Python is only deployed in select labs. We recommend deploying Python 3.10+ and VS Code extensions to Lab 526 and Lab 530.",
+                        'impact' => 'High Impact',
+                        'action_label' => 'Deploy Software'
+                    ];
+                }
+            } else if (strpos($topPurpose, 'c#') !== false || strpos($topPurpose, 'net') !== false || strpos($topPurpose, 'visual') !== false) {
+                // C# / Visual Studio gap analysis
+                $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM lab_software WHERE software_name LIKE '%Visual Studio%' OR software_name LIKE '%C#%'");
+                $stmt->execute();
+                $csCount = intval($stmt->fetch()['count']);
+                if ($csCount < 3) {
+                    $recommendations[] = [
+                        'type' => 'software',
+                        'title' => 'Expand Visual Studio Deploys',
+                        'description' => "C# / ASP.NET development is a key student focus. Visual Studio is only fully configured in Lab 530 and MAC Lab. Recommend provisioning Visual Studio Community to Lab 524 for Web development overflow.",
+                        'impact' => 'High Impact',
+                        'action_label' => 'View Catalog'
+                    ];
+                }
+            }
+        }
+
+        // If we didn't add a software one, add a general recommendation
+        if (count($recommendations) < 2) {
+            $recommendations[] = [
+                'type' => 'software',
+                'title' => 'Pre-emptive Software Audit',
+                'description' => 'A large number of students (over 30% this month) sit-in for undefined self-study. We advise publishing a department-wide software catalog update and installing Visual Studio Code across all 5 laboratory rooms.',
+                'impact' => 'Medium Impact',
+                'action_label' => 'View Catalog'
+            ];
+        }
+
+        // 3. Peak Hour / Scheduling Recommendation
+        // Query to find busiest hour
+        $stmt = $pdo->query("
+            SELECT strftime('%H', time_in) as hour, COUNT(*) as count 
+            FROM sitin_records 
+            GROUP BY hour 
+            ORDER BY count DESC 
+            LIMIT 1
+        ");
+        $peakHourRow = $stmt->fetch();
+        if ($peakHourRow) {
+            $peakHour = intval($peakHourRow['hour']);
+            $formattedHour = ($peakHour % 12 ?: 12) . ':00 ' . ($peakHour >= 12 ? 'PM' : 'AM');
+            $recommendations[] = [
+                'type' => 'schedule',
+                'title' => 'Peak Hours Congestion Relief',
+                'description' => "Data analysis identifies peak laboratory bottleneck at $formattedHour. Recommend launching an automated dashboard advisory notifying students to book reservations between 8:00 AM - 11:00 AM or after 4:00 PM to bypass peak hours.",
+                'impact' => 'Medium Impact',
+                'action_label' => 'Post Advisory'
+            ];
+        } else {
+            $recommendations[] = [
+                'type' => 'schedule',
+                'title' => 'Shift Scheduling Recommendations',
+                'description' => 'Busiest times are usually early afternoon. Encourage students to check lab capacity in real-time on their student dashboard before checking in to reduce front desk delays.',
+                'impact' => 'Low Impact',
+                'action_label' => 'View Schedule'
+            ];
+        }
+
+        echo json_encode(['success' => true, 'recommendations' => $recommendations]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function downloadReport() {
+    global $pdo;
+    
+    // Auth Check inside function as well just to be extremely secure
+    if (!isset($_SESSION['user_id']) || !isset($_SESSION['token'])) {
+        die("Not authenticated");
+    }
+    
+    $type = $_GET['type'] ?? 'daily';
+    $date = $_GET['date'] ?? date('Y-m-d');
+    $week = $_GET['week'] ?? date('Y-\WW');
+    $month = $_GET['month'] ?? date('Y-m');
+    $year = $_GET['year'] ?? date('Y');
+    
+    try {
+        $query = "
+            SELECT r.id, u.id_number, u.firstname, u.lastname, u.course, u.level, 
+                   r.lab_number, r.pc_number, r.time_in, r.time_out, r.purpose
+            FROM sitin_records r
+            JOIN users u ON r.user_id = u.id
+            WHERE 1=1
+        ";
+        $params = [];
+        
+        if ($type === 'daily' && !empty($date)) {
+            $query .= " AND date(r.time_in) = ?";
+            $params[] = $date;
+            $filename = "CCS_Daily_Report_" . $date;
+        } elseif ($type === 'weekly') {
+            $query .= " AND r.time_in >= datetime('now', '-7 days')";
+            $filename = "CCS_Weekly_Report_" . date('Ymd');
+        } elseif ($type === 'monthly' && !empty($month)) {
+            $query .= " AND strftime('%Y-%m', r.time_in) = ?";
+            $params[] = $month;
+            $filename = "CCS_Monthly_Report_" . $month;
+        } elseif ($type === 'yearly' && !empty($year)) {
+            $query .= " AND strftime('%Y', r.time_in) = ?";
+            $params[] = $year;
+            $filename = "CCS_Yearly_Report_" . $year;
+        } else {
+            $query .= " AND date(r.time_in) = date('now')";
+            $filename = "CCS_SitIn_Report_" . date('Ymd');
+        }
+        
+        $query .= " ORDER BY r.time_in DESC";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        $records = $stmt->fetchAll();
+        
+        // Clean headers and clear output buffer to ensure pure CSV stream
+        if (ob_get_level()) ob_end_clean();
+        
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '.csv"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
+        $output = fopen('php://output', 'w');
+        
+        // Output CSV Headers
+        fputcsv($output, [
+            'Record ID', 
+            'Student ID', 
+            'Last Name', 
+            'First Name', 
+            'Course & Year', 
+            'Laboratory', 
+            'PC Number', 
+            'Time In', 
+            'Time Out', 
+            'Duration (Hours)', 
+            'Purpose'
+        ]);
+        
+        // Output CSV Data Rows
+        foreach ($records as $row) {
+            $duration = 'Ongoing';
+            if ($row['time_out']) {
+                $diff = strtotime($row['time_out']) - strtotime($row['time_in']);
+                $duration = round($diff / 3600, 2);
+            }
+            
+            fputcsv($output, [
+                $row['id'],
+                $row['id_number'],
+                $row['lastname'],
+                $row['firstname'],
+                $row['course'] . ' - ' . $row['level'],
+                'Lab ' . $row['lab_number'],
+                $row['pc_number'] ?: 'N/A',
+                $row['time_in'],
+                $row['time_out'] ?: 'Ongoing',
+                $duration,
+                ucfirst($row['purpose'] ?: 'N/A')
+            ]);
+        }
+        
+        fclose($output);
+        exit;
+    } catch (PDOException $e) {
+        die("Export failed: " . $e->getMessage());
+    }
+}
+
+function importSoftware() {
+    global $pdo;
+    
+    if (!isset($_FILES['software_csv']) || $_FILES['software_csv']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['success' => false, 'message' => 'No file uploaded or file upload error.']);
+        return;
+    }
+    
+    $fileTmpPath = $_FILES['software_csv']['tmp_path'] ?? $_FILES['software_csv']['tmp_name'];
+    $fileName = $_FILES['software_csv']['name'];
+    
+    $importedCount = 0;
+    $errors = [];
+    
+    try {
+        if (($handle = fopen($fileTmpPath, 'r')) !== FALSE) {
+            // Read headers
+            $headers = fgetcsv($handle, 1000, ',');
+            
+            // Expected columns: lab_number, software_name, version, status
+            // Trim headers to be safe
+            $headers = array_map('trim', $headers);
+            
+            // Map headers to indices
+            $labIdx = array_search('lab_number', $headers);
+            $nameIdx = array_search('software_name', $headers);
+            $verIdx = array_search('version', $headers);
+            $statIdx = array_search('status', $headers);
+            
+            // If headers are missing, fall back to index-based mapping (0=lab, 1=name, 2=version, 3=status)
+            if ($labIdx === false || $nameIdx === false) {
+                $labIdx = 0;
+                $nameIdx = 1;
+                $verIdx = 2;
+                $statIdx = 3;
+            }
+            
+            $pdo->beginTransaction();
+            
+            $rowNum = 1;
+            while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
+                $rowNum++;
+                $lab = trim($data[$labIdx] ?? '');
+                $name = trim($data[$nameIdx] ?? '');
+                $version = trim($data[$verIdx] ?? '1.0');
+                $status = trim($data[$statIdx] ?? 'available');
+                
+                if (empty($lab) || empty($name)) {
+                    $errors[] = "Row $rowNum skipped: lab_number and software_name are required.";
+                    continue;
+                }
+                
+                // Clean up lab number string (e.g. if student inputs "Lab 524", trim it to "524")
+                $lab = str_ireplace('Lab ', '', $lab);
+                
+                // Check if already exists in lab_software
+                $checkStmt = $pdo->prepare("SELECT id FROM lab_software WHERE lab_number = ? AND software_name = ?");
+                $checkStmt->execute([$lab, $name]);
+                $existing = $checkStmt->fetch();
+                
+                if ($existing) {
+                    // Update
+                    $updateStmt = $pdo->prepare("UPDATE lab_software SET version = ?, status = ? WHERE id = ?");
+                    $updateStmt->execute([$version, $status, $existing['id']]);
+                } else {
+                    // Insert new software
+                    $insertStmt = $pdo->prepare("INSERT INTO lab_software (lab_number, software_name, version, status) VALUES (?, ?, ?, ?)");
+                    $insertStmt->execute([$lab, $name, $version, $status]);
+                }
+                $importedCount++;
+            }
+            
+            fclose($handle);
+            $pdo->commit();
+            
+            echo json_encode([
+                'success' => true,
+                'message' => "Successfully imported $importedCount software applications.",
+                'errors' => $errors
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to read uploaded file.']);
+        }
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode(['success' => false, 'message' => 'Import error: ' . $e->getMessage()]);
+    }
+}
+
+function getSoftware() {
+    global $pdo;
+    try {
+        $stmt = $pdo->query("SELECT * FROM lab_software ORDER BY lab_number, software_name");
+        $software = $stmt->fetchAll();
+        echo json_encode(['success' => true, 'software' => $software]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function addSoftware() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $lab = trim($input['lab_number'] ?? '');
+    $name = trim($input['software_name'] ?? '');
+    $version = trim($input['version'] ?? '1.0');
+    $status = trim($input['status'] ?? 'available');
+    
+    if (empty($lab) || empty($name)) {
+        echo json_encode(['success' => false, 'message' => 'Lab and Name are required.']);
+        return;
+    }
+    
+    $lab = str_ireplace('Lab ', '', $lab);
+    
+    try {
+        // Insert
+        $stmt = $pdo->prepare("INSERT INTO lab_software (lab_number, software_name, version, status) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$lab, $name, $version, $status]);
+        echo json_encode(['success' => true, 'message' => 'Software added successfully.']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function deleteSoftware() {
+    global $pdo;
+    $id = $_GET['id'] ?? '';
+    
+    if (empty($id)) {
+        echo json_encode(['success' => false, 'message' => 'ID is required.']);
+        return;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM lab_software WHERE id = ?");
+        $stmt->execute([$id]);
+        echo json_encode(['success' => true, 'message' => 'Software deleted successfully.']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }

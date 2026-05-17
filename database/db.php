@@ -59,6 +59,13 @@ try {
         // Column might already exist, ignore
     }
 
+    // Add can_reserve column to users if it doesn't exist (for existing databases)
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN can_reserve INTEGER DEFAULT 1");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+
     // Create user_sessions table for tracking remaining sit-in sessions
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS user_sessions (
@@ -134,6 +141,66 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
+
+    // Create lab_software table if not exists
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS lab_software (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lab_number TEXT NOT NULL,
+            software_name TEXT NOT NULL,
+            version TEXT,
+            status TEXT DEFAULT 'available'
+        )
+    ");
+
+    // Populate lab_software with default data if empty
+    $checkSoftware = $pdo->query("SELECT COUNT(*) FROM lab_software");
+    if ($checkSoftware->fetchColumn() == 0) {
+        $softwareList = [
+            // Lab 524 (Web & Systems Development)
+            ['524', 'Visual Studio Code', '1.85.0', 'available'],
+            ['524', 'Python', '3.10.11', 'available'],
+            ['524', 'Git', '2.43.0', 'available'],
+            ['524', 'Node.js', '20.10.0', 'available'],
+            ['524', 'XAMPP (PHP, MySQL)', '8.2.12', 'available'],
+            ['524', 'Google Chrome', '120.0.6', 'available'],
+            
+            // Lab 526 (Java & OOP Programming)
+            ['526', 'Java JDK', '17.0.9', 'available'],
+            ['526', 'NetBeans IDE', '20.0', 'available'],
+            ['526', 'Eclipse IDE', '2023-09', 'available'],
+            ['526', 'MySQL Workbench', '8.0.34', 'available'],
+            ['526', 'IntelliJ IDEA Community', '2023.2.5', 'available'],
+            
+            // Lab 528 (Networking & Cisco)
+            ['528', 'Cisco Packet Tracer', '8.2.1', 'available'],
+            ['528', 'Wireshark', '4.2.0', 'available'],
+            ['528', 'GNS3', '2.2.43', 'available'],
+            ['528', 'PuTTY', '0.80', 'available'],
+            ['528', 'VirtualBox', '7.0.12', 'available'],
+            
+            // Lab 530 (Mobile & Advanced Dev)
+            ['530', 'Android Studio', '2023.1.1', 'available'],
+            ['530', 'IntelliJ IDEA Ultimate', '2023.2.5', 'available'],
+            ['530', 'Flutter SDK', '3.16.5', 'available'],
+            ['530', 'Visual Studio Community', '2022', 'available'],
+            ['530', 'Unity Hub & Editor', '2022.3.15', 'available'],
+            
+            // MAC Lab (iOS Dev & Design)
+            ['MAC', 'Xcode', '15.1', 'available'],
+            ['MAC', 'VS Code for Mac', '1.85.0', 'available'],
+            ['MAC', 'Python', '3.11.5', 'available'],
+            ['MAC', 'Adobe Photoshop', '2024', 'available'],
+            ['MAC', 'Adobe Illustrator', '2024', 'available'],
+            ['MAC', 'Figma (Desktop)', '116.15', 'available'],
+        ];
+        
+        $insertStmt = $pdo->prepare("INSERT INTO lab_software (lab_number, software_name, version, status) VALUES (?, ?, ?, ?)");
+        foreach ($softwareList as $sw) {
+            $insertStmt->execute($sw);
+        }
+    }
+
 
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());

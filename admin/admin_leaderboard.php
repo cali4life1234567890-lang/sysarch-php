@@ -16,21 +16,11 @@ if (!$stmt->fetch()) {
     exit;
 }
 
-// Get leaderboard data
+// Fetch all leaderboard stats
 $leaderboardStmt = $pdo->query("
-    SELECT 
-        u.id_number,
-        u.lastname,
-        u.firstname,
-        u.middlename,
-        u.course,
-        u.level,
+    SELECT u.id, u.id_number, u.firstname, u.middlename, u.lastname, u.course, u.level,
         COALESCE(SUM(
-            CASE 
-                WHEN sr.time_out IS NOT NULL 
-                THEN (julianday(sr.time_out) - julianday(sr.time_in)) * 24 
-                ELSE 0 
-            END
+            (strftime('%s', COALESCE(sr.time_out, datetime('now'))) - strftime('%s', sr.time_in)) / 3600.0
         ), 0) as total_hours,
         COALESCE((30 - us.remaining_sessions), 30) as used_sessions
     FROM users u
@@ -46,6 +36,7 @@ $rank = 1;
 while ($row = $leaderboardStmt->fetch(PDO::FETCH_ASSOC)) {
     $totalHours = round($row['total_hours'], 2);
     $usedSessions = intval($row['used_sessions']);
+    // Sit-in score formula: 60% hours spent, 40% sessions used
     $totalScore = (0.60 * $totalHours) + (0.40 * $usedSessions);
     
     $name = trim($row['firstname'] . ' ' . ($row['middlename'] ? $row['middlename'] . ' ' : '') . $row['lastname']);
@@ -63,9 +54,12 @@ while ($row = $leaderboardStmt->fetch(PDO::FETCH_ASSOC)) {
     $rank++;
 }
 
-// Sort by total score
+// Sort by total score descending
 usort($leaderboardData, function($a, $b) {
-    return $b['total_score'] - $a['total_score'];
+    if ($b['total_score'] == $a['total_score']) {
+        return $b['hours_spent'] - $a['hours_spent'];
+    }
+    return ($b['total_score'] - $a['total_score']) > 0 ? 1 : -1;
 });
 
 // Re-assign ranks after sorting
@@ -78,6 +72,8 @@ foreach ($leaderboardData as &$entry) {
 }
 
 $leaderboardJson = json_encode($rankedData);
+
+$adminName = $_SESSION['name'] ?? 'Admin';
 ?>
 <!doctype html>
 <html lang="en">
@@ -87,48 +83,7 @@ $leaderboardJson = json_encode($rankedData);
     <title>Leaderboard - CCS Sit-In System</title>
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="admin.css">
-    <style>
-        .leaderboard-container {
-            padding: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .leaderboard-header {
-            margin-bottom: 20px;
-        }
-        .leaderboard-table {
-            width: 100%;
-            background: white;
-            border-collapse: collapse;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .leaderboard-table th {
-            background: #144d94;
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-        }
-        .leaderboard-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #eee;
-        }
-        .leaderboard-table tr:hover {
-            background: #f8f9fa;
-        }
-        .rank-cell {
-            font-weight: bold;
-        }
-        .rank-1 { color: #ffd700; }
-        .rank-2 { color: #c0c0c0; }
-        .rank-3 { color: #cd7f32; }
-        .score-cell {
-            font-weight: bold;
-            color: #144d94;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar admin-navbar">
@@ -144,6 +99,7 @@ $leaderboardJson = json_encode($rankedData);
             <a href="admin_leaderboard.php" class="active">Leaderboard</a>
             <a href="admin_students.php">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
+            <a href="admin_software.php">Software Manager</a>
             <a href="admin_records.php">View Sit-In Records</a>
             <a href="admin_reports.php">Sit-In Reports</a>
             <a href="admin_feedback.php">Feedback</a>
@@ -152,26 +108,124 @@ $leaderboardJson = json_encode($rankedData);
         </div>
     </nav>
 
-    <div class="admin-content">
-        <div class="leaderboard-container">
-            <div class="leaderboard-header">
-                <h1>Leaderboard</h1>
+    <div class="admin-content premium-admin-dashboard">
+        <div class="dashboard-header-flex">
+            <div>
+                <span class="welcome-badge">GAMIFIED STATISTICS</span>
+                <h1>Student Leaderboard</h1>
             </div>
-            
-            <table class="leaderboard-table">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Student</th>
-                        <th>Course</th>
-                        <th>Hours Spent</th>
-                        <th>Sessions Used</th>
-                        <th>Total Score</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboard-body">
-                </tbody>
-            </table>
+            <div class="admin-profile-badge">
+                <span class="avatar">🏆</span>
+                <div>
+                    <strong><?php echo htmlspecialchars($adminName); ?></strong>
+                    <span>System Administrator</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="leaderboard-outer-container">
+            <!-- Dynamic Podium for Top 3 Students -->
+            <?php if (count($rankedData) >= 1): ?>
+            <div class="podium-section">
+                <!-- 2nd Place (Left) -->
+                <?php if (isset($rankedData[1])): ?>
+                <div class="podium-card place-2">
+                    <div class="podium-badge badge-silver">2</div>
+                    <div class="podium-avatar-ring">
+                        <span class="podium-avatar">🥈</span>
+                    </div>
+                    <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[1]['name']); ?></h4>
+                    <span class="podium-id"><?php echo htmlspecialchars($rankedData[1]['id_number']); ?></span>
+                    <span class="podium-course"><?php echo htmlspecialchars($rankedData[1]['course'] . '-' . $rankedData[1]['level']); ?></span>
+                    <div class="podium-metrics">
+                        <div>
+                            <strong><?php echo $rankedData[1]['hours_spent']; ?>h</strong>
+                            <span>Spent</span>
+                        </div>
+                        <div>
+                            <strong><?php echo $rankedData[1]['total_score']; ?></strong>
+                            <span>Score</span>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 1st Place (Center - taller & crowned) -->
+                <?php if (isset($rankedData[0])): ?>
+                <div class="podium-card place-1">
+                    <div class="crown-icon">👑</div>
+                    <div class="podium-badge badge-gold">1</div>
+                    <div class="podium-avatar-ring">
+                        <span class="podium-avatar">🥇</span>
+                    </div>
+                    <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[0]['name']); ?></h4>
+                    <span class="podium-id"><?php echo htmlspecialchars($rankedData[0]['id_number']); ?></span>
+                    <span class="podium-course"><?php echo htmlspecialchars($rankedData[0]['course'] . '-' . $rankedData[0]['level']); ?></span>
+                    <div class="podium-metrics">
+                        <div>
+                            <strong><?php echo $rankedData[0]['hours_spent']; ?>h</strong>
+                            <span>Spent</span>
+                        </div>
+                        <div>
+                            <strong><?php echo $rankedData[0]['total_score']; ?></strong>
+                            <span>Score</span>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 3rd Place (Right) -->
+                <?php if (isset($rankedData[2])): ?>
+                <div class="podium-card place-3">
+                    <div class="podium-badge badge-bronze">3</div>
+                    <div class="podium-avatar-ring">
+                        <span class="podium-avatar">🥉</span>
+                    </div>
+                    <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[2]['name']); ?></h4>
+                    <span class="podium-id"><?php echo htmlspecialchars($rankedData[2]['id_number']); ?></span>
+                    <span class="podium-course"><?php echo htmlspecialchars($rankedData[2]['course'] . '-' . $rankedData[2]['level']); ?></span>
+                    <div class="podium-metrics">
+                        <div>
+                            <strong><?php echo $rankedData[2]['hours_spent']; ?>h</strong>
+                            <span>Spent</span>
+                        </div>
+                        <div>
+                            <strong><?php echo $rankedData[2]['total_score']; ?></strong>
+                            <span>Score</span>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- Table of Rankings -->
+            <div class="chart-container-card leaderboard-table-card">
+                <div class="catalog-viewer-header">
+                    <h2>Overall Student Rankings</h2>
+                    <div class="search-filter-box">
+                        <input type="text" id="leaderboardSearch" placeholder="Search student name or course..." onkeyup="filterLeaderboard()" class="search-box">
+                    </div>
+                </div>
+
+                <div class="table-wrapper-outer">
+                    <table class="data-table" id="leaderboardTable">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Student Name</th>
+                                <th>Course & Level</th>
+                                <th>Hours Spent</th>
+                                <th>Sessions Logged</th>
+                                <th style="text-align: right;">Activity Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Loaded Dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -184,26 +238,66 @@ $leaderboardJson = json_encode($rankedData);
         
         function renderLeaderboard() {
             const tbody = document.getElementById('leaderboard-body');
+            const searchVal = document.getElementById('leaderboardSearch').value.toLowerCase();
             
-            if (leaderboardData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No data available</td></tr>';
+            const filtered = leaderboardData.filter(entry => {
+                return entry.name.toLowerCase().includes(searchVal) || 
+                       entry.course.toLowerCase().includes(searchVal) || 
+                       entry.id_number.toLowerCase().includes(searchVal);
+            });
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888; padding: 25px;">No students match your query.</td></tr>';
                 return;
             }
             
-            tbody.innerHTML = leaderboardData.map(entry => {
-                const rankClass = entry.rank <= 3 ? 'rank-' + entry.rank : '';
+            tbody.innerHTML = filtered.map(entry => {
+                let rankClass = '';
+                let rankDisplay = `#${entry.rank}`;
+                
+                if (entry.rank === 1) {
+                    rankClass = 'rank-1';
+                    rankDisplay = '🏆 1st';
+                } else if (entry.rank === 2) {
+                    rankClass = 'rank-2';
+                    rankDisplay = '🥈 2nd';
+                } else if (entry.rank === 3) {
+                    rankClass = 'rank-3';
+                    rankDisplay = '🥉 3rd';
+                }
+                
                 return `
-                    <tr>
-                        <td class="rank-cell ${rankClass}">#${entry.rank}</td>
-                        <td>${entry.name}</td>
-                        <td>${entry.course} - ${entry.level}</td>
-                        <td>${entry.hours_spent}</td>
-                        <td>${entry.sessions_used}</td>
-                        <td class="score-cell">${entry.total_score}</td>
+                    <tr class="${entry.rank <= 3 ? 'top-three-row' : ''}">
+                        <td><span class="rank-cell ${rankClass}">${rankDisplay}</span></td>
+                        <td>
+                            <div class="student-mini-info">
+                                <strong>${escapeHtml(entry.name)}</strong>
+                                <span>ID: ${entry.id_number}</span>
+                            </div>
+                        </td>
+                        <td><span class="course-badge">${escapeHtml(entry.course)} - Lvl ${entry.level}</span></td>
+                        <td><strong>${entry.hours_spent} hrs</strong></td>
+                        <td><code>${entry.sessions_used} sessions</code></td>
+                        <td class="score-cell" style="text-align: right; font-weight: bold; color: var(--primary-color);">${entry.total_score}</td>
                     </tr>
                 `;
             }).join('');
         }
+
+        function filterLeaderboard() {
+            renderLeaderboard();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
     </script>
+    <?php require_once 'search_modal.php'; ?>
 </body>
 </html>
