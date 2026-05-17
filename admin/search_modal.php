@@ -225,6 +225,43 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
         opacity: 1;
     }
 }
+
+.pc-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-top: 15px;
+}
+
+.pc-option {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    background: white;
+    font-weight: bold;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.pc-option:hover {
+    background: #144d94;
+    color: white;
+    border-color: #144d94;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(20, 77, 148, 0.15);
+}
+
+.pc-option.occupied {
+    background: #e9ecef !important;
+    color: #adb5bd !important;
+    border-color: #dee2e6 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
 </style>
 
 <!-- Search Student Modal -->
@@ -416,30 +453,60 @@ function onLabChange() {
     }
 }
 
-function openPCModal() {
+async function openPCModal() {
     var lab = document.getElementById('sitinLab').value;
+    if (!lab) return;
     
-    // Generate 56 PC numbers (8x7 grid)
-    var pcCount = 56;
-    
-    var pcOptionsHtml = '';
-    for (var i = 1; i <= pcCount; i++) {
-        pcOptionsHtml += '<div class="pc-option" onclick="selectPC(' + i + ')" style="padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin: 5px; cursor: pointer; text-align: center; background: white; transition: all 0.2s;" onmouseover="this.style.background=#f0f0f0" onmouseout="this.style.background=white">' + i + '</div>';
-    }
-    
+    // Create loading container first
     var pcModalHtml = `
     <div id="pcSelectModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; justify-content: center; align-items: center;">
         <div style="background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
             <span onclick="closePCModal()" style="position: absolute; top: 10px; right: 20px; font-size: 28px; cursor: pointer; color: #666;">&times;</span>
-            <h2 style="margin-top: 0;">Select PC - Lab ${lab}</h2>
-            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
-                ${pcOptionsHtml}
+            <h2 style="margin-top: 0; font-family: 'Outfit', sans-serif;">Select PC - Lab ${lab}</h2>
+            <div id="pcGridLoader" style="text-align: center; padding: 40px 10px; color: #144d94;">
+                <div style="width: 32px; height: 32px; border: 3px solid rgba(20, 77, 148, 0.1); border-top: 3px solid #144d94; border-radius: 50%; margin: 0 auto 12px; animation: searchSpin 1s linear infinite;"></div>
+                <p style="margin: 0; font-weight: 600;">Loading PC status...</p>
             </div>
+            <div id="pcOptionsGrid" class="pc-grid" style="display: none;"></div>
         </div>
     </div>
     `;
     
+    // Remove existing modal if any
+    var existing = document.getElementById('pcSelectModal');
+    if (existing) { existing.remove(); }
+    
     document.body.insertAdjacentHTML('beforeend', pcModalHtml);
+    
+    try {
+        var response = await fetch('api_get_occupied_pcs.php?lab=' + encodeURIComponent(lab));
+        var data = await response.json();
+        
+        var occupied = [];
+        if (data.success) {
+            occupied = data.occupied || [];
+        }
+        
+        var pcCount = 56;
+        var pcOptionsHtml = '';
+        
+        for (var i = 1; i <= pcCount; i++) {
+            var isOccupied = occupied.includes(i);
+            var occupiedClass = isOccupied ? 'occupied' : '';
+            var clickHandler = isOccupied ? '' : 'onclick="selectPC(' + i + ')"';
+            var titleText = isOccupied ? 'PC ' + i + ' (Occupied)' : 'PC ' + i;
+            
+            pcOptionsHtml += `<div class="pc-option ${occupiedClass}" ${clickHandler} title="${titleText}">${i}</div>`;
+        }
+        
+        document.getElementById('pcGridLoader').style.display = 'none';
+        var grid = document.getElementById('pcOptionsGrid');
+        grid.innerHTML = pcOptionsHtml;
+        grid.style.display = 'grid';
+        
+    } catch (error) {
+        document.getElementById('pcGridLoader').innerHTML = '<p style="color: #dc3545; margin: 0;">Error loading PC status. Please close and try again.</p>';
+    }
 }
 
 function selectPC(pcNum) {

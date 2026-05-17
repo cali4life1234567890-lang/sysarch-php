@@ -1070,6 +1070,11 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
         
         let remainingSeconds = sitInData.remaining_seconds;
         
+        if (remainingSeconds === null || typeof remainingSeconds === 'undefined' || remainingSeconds < 0) {
+          timeDisplay.textContent = 'Active';
+          return;
+        }
+        
         updateTimerDisplay(remainingSeconds);
         
         timerInterval = setInterval(function() {
@@ -1104,7 +1109,8 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
       function toggleTimerDetails() {
         if (currentSitInDetails) {
           const pcInfo = currentSitInDetails.pc_number ? 'PC ' + currentSitInDetails.pc_number : 'Not assigned';
-          alert('Active Sit-In\nLab: ' + currentSitInDetails.lab_number + '\nPC: ' + pcInfo + '\nStarted: ' + currentSitInDetails.time_in + '\nEnds: ' + currentSitInDetails.end_time);
+          const endsText = currentSitInDetails.end_time ? '\nEnds: ' + currentSitInDetails.end_time : '';
+          alert('Active Sit-In\nLab: ' + currentSitInDetails.lab_number + '\nPC: ' + pcInfo + '\nStarted: ' + currentSitInDetails.time_in + endsText);
         }
       }
 

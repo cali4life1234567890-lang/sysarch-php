@@ -390,40 +390,16 @@ function getCurrentSitIn() {
         $record = $stmt->fetch();
         
         if ($record) {
-            $timeIn = strtotime($record['time_in']);
-            $now = time();
-            $duration = $now - $timeIn;
-            $maxDuration = 7200;
-            
-            if ($duration >= $maxDuration) {
-                $endStmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ?");
-                $endStmt->execute([$record['id']]);
-                
-                if ($record['pc_number']) {
-                    $pcStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
-                    $pcStmt->execute([$record['lab_number'], $record['pc_number']]);
-                }
-                
-                echo json_encode([
-                    'success' => true,
-                    'current_sitin' => null,
-                    'auto_ended' => true,
-                    'message' => 'Your sit-in has been automatically ended due to the 2-hour limit'
-                ]);
-                return;
-            }
-            
-            $remainingSeconds = $maxDuration - $duration;
-            
             echo json_encode([
                 'success' => true,
                 'current_sitin' => [
                     'id' => $record['id'],
                     'lab' => $record['lab_number'],
+                    'pc_number' => $record['pc_number'] ? (int)$record['pc_number'] : null,
                     'time_in' => $record['time_in'],
                     'purpose' => $record['purpose']
                 ],
-                'remaining_seconds' => $remainingSeconds
+                'remaining_seconds' => null
             ]);
         } else {
             echo json_encode(['success' => true, 'current_sitin' => null]);
@@ -567,11 +543,6 @@ function getActiveSitIn() {
         $result = $stmt->fetch();
         
         if ($result) {
-            $timeIn = strtotime($result['time_in']);
-            $endTime = strtotime('+2 hours', $timeIn);
-            $currentTime = time();
-            $remainingSeconds = max(0, $endTime - $currentTime);
-            
             echo json_encode([
                 'success' => true,
                 'sitin' => [
@@ -579,8 +550,8 @@ function getActiveSitIn() {
                     'lab_number' => $result['lab_number'],
                     'pc_number' => $result['pc_number'] ? (int)$result['pc_number'] : null,
                     'time_in' => $result['time_in'],
-                    'end_time' => date('Y-m-d H:i:s', $endTime),
-                    'remaining_seconds' => (int)$remainingSeconds
+                    'end_time' => null,
+                    'remaining_seconds' => null
                 ]
             ]);
         } else {

@@ -68,7 +68,7 @@ try {
 $currentSitIns = [];
 try {
     $stmt = $pdo->query("
-        SELECT r.id, r.lab_number, r.time_in, r.purpose, r.time_out, u.id_number, u.firstname, u.lastname,
+        SELECT r.id, r.lab_number, r.pc_number, r.time_in, r.purpose, r.time_out, u.id_number, u.firstname, u.lastname,
                COALESCE(us.remaining_sessions, 30) as remaining_sessions
         FROM sitin_records r
         JOIN users u ON r.user_id = u.id
@@ -207,7 +207,14 @@ $selectedStudent = $_GET['student'] ?? '';
                             <td><?php echo htmlspecialchars($sitin['id_number']); ?></td>
                             <td><?php echo htmlspecialchars($sitin['firstname'] . ' ' . $sitin['lastname']); ?></td>
                             <td><?php echo htmlspecialchars($sitin['purpose']); ?></td>
-                            <td><?php echo htmlspecialchars($sitin['lab_number']); ?></td>
+                            <td>
+                                <?php 
+                                echo htmlspecialchars($sitin['lab_number']); 
+                                if (!empty($sitin['pc_number'])) {
+                                    echo ' (PC ' . htmlspecialchars($sitin['pc_number']) . ')';
+                                }
+                                ?>
+                            </td>
                             <td><?php echo htmlspecialchars($sitin['remaining_sessions']); ?></td>
                             <td><span class="status-badge status-active">Active</span></td>
                             <td>
