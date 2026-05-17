@@ -24,6 +24,7 @@ try {
             password TEXT NOT NULL,
             address TEXT,
             can_reserve INTEGER DEFAULT 1,
+            profile_pic TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ");
@@ -62,6 +63,13 @@ try {
     // Add can_reserve column to users if it doesn't exist (for existing databases)
     try {
         $pdo->exec("ALTER TABLE users ADD COLUMN can_reserve INTEGER DEFAULT 1");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+
+    // Add profile_pic column to users if it doesn't exist (for existing databases)
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN profile_pic TEXT");
     } catch (PDOException $e) {
         // Column might already exist, ignore
     }

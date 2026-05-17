@@ -12,7 +12,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
     $stmt->execute([$_SESSION['user_id'], $_SESSION['token']]);
     if ($stmt->fetch()) {
         // Get user data with remaining sessions
-        $userStmt = $pdo->prepare("SELECT u.id_number, u.lastname, u.firstname, u.middlename, u.course, u.level, u.email, u.address, COALESCE(us.remaining_sessions, 30) as remaining_sessions FROM users u LEFT JOIN user_sessions us ON u.id = us.user_id WHERE u.id = ?");
+        $userStmt = $pdo->prepare("SELECT u.id_number, u.lastname, u.firstname, u.middlename, u.course, u.level, u.email, u.address, u.profile_pic, COALESCE(us.remaining_sessions, 30) as remaining_sessions FROM users u LEFT JOIN user_sessions us ON u.id = us.user_id WHERE u.id = ?");
         $userStmt->execute([$_SESSION['user_id']]);
         $user = $userStmt->fetch();
         if ($user) {
@@ -33,6 +33,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
                 'email' => $user['email'],
                 'address' => $user['address'],
                 'sessions_left' => $user['remaining_sessions'],
+                'profile_pic' => $user['profile_pic'],
                 'is_admin' => $isAdmin
             ];
         }
@@ -1306,17 +1307,22 @@ $userJson = json_encode($currentUser);
         list.innerHTML = html;
       }
 
-      // Load user profile picture from localStorage
+      // Load user profile picture
       function loadUserProfilePicture() {
         const userId = currentUser?.id_number;
         if (!userId) return;
         
+        const dbPhoto = currentUser?.profile_pic;
         const storedPhoto = localStorage.getItem('user_profile_picture_' + userId);
         const photoElements = document.querySelectorAll('.student-photo, #profile-picture');
         
         photoElements.forEach(img => {
-          if (storedPhoto) {
+          if (dbPhoto) {
+            img.src = dbPhoto;
+          } else if (storedPhoto) {
             img.src = storedPhoto;
+          } else {
+            img.src = 'imgs/emp-prof.png';
           }
         });
       }
@@ -1524,17 +1530,31 @@ $userJson = json_encode($currentUser);
           return;
         }
 
-        const userId = currentUser?.id_number || document.getElementById('prof-id')?.textContent;
-        
-        // Store in localStorage as a demo - in production, upload to server
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          localStorage.setItem('user_profile_picture_' + userId, e.target.result);
-          alert('Profile picture updated successfully!');
-          // Reload the profile picture on the home page
-          loadUserProfilePicture();
-        };
-        reader.readAsDataURL(input.files[0]);
+        const formData = new FormData();
+        formData.append('profile_pic', input.files[0]);
+
+        fetch('reg-log-prof/profile.php?action=upload_pic', {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert(data.message);
+            // Update current user's profile_pic
+            if (currentUser) {
+              currentUser.profile_pic = data.profile_pic;
+            }
+            // Reload the profile picture on the home page
+            loadUserProfilePicture();
+          } else {
+            alert(data.message || 'Failed to upload photo');
+          }
+        })
+        .catch(err => {
+          console.error('Error uploading profile picture:', err);
+          alert('An error occurred while uploading. Please try again.');
+        });
       }
 
       // Load current sit-in status

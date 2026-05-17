@@ -1881,4 +1881,58 @@
     }
 }
 
+/* Premium Profile Picture Additions */
+.podium-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.podium-card:hover .podium-avatar-img {
+    transform: scale(1.1);
+}
+
+.student-leaderboard-identity {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.leaderboard-table-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e2e8f0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.student-leaderboard-identity:hover .leaderboard-table-avatar {
+    transform: scale(1.08);
+}
+
+.top-three-row .leaderboard-table-avatar {
+    border-width: 3px;
+}
+
+td:first-child:has(.rank-1) + td .leaderboard-table-avatar {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+td:first-child:has(.rank-2) + td .leaderboard-table-avatar {
+    border-color: #c0c0c0;
+    box-shadow: 0 0 10px rgba(192, 192, 192, 0.2);
+}
+
+td:first-child:has(.rank-3) + td .leaderboard-table-avatar {
+    border-color: #cd7f32;
+    box-shadow: 0 0 10px rgba(205, 127, 50, 0.2);
+}
+
 

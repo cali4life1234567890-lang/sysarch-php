@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' || $_SERVER['REQUEST_METHOD'] === 'POST
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Get user profile
         try {
-            $stmt = $pdo->prepare("SELECT id_number, lastname, firstname, middlename, course, level, email, address FROM users WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id_number, lastname, firstname, middlename, course, level, email, address, profile_pic FROM users WHERE id = ?");
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch();
             
@@ -32,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' || $_SERVER['REQUEST_METHOD'] === 'POST
                         'course' => $user['course'],
                         'level' => $user['level'],
                         'email' => $user['email'],
-                        'address' => $user['address']
+                        'address' => $user['address'],
+                        'profile_pic' => $user['profile_pic']
                     ]
                 ]);
             } else {
@@ -42,7 +43,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' || $_SERVER['REQUEST_METHOD'] === 'POST
             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
         }
     } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Update user profile
+        // Check for specific action first
+        $action = $_GET['action'] ?? '';
+        if ($action === 'upload_pic') {
+            if (isset($_FILES['profile_pic'])) {
+                $file = $_FILES['profile_pic'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    echo json_encode(['success' => false, 'message' => 'File upload error']);
+                    exit;
+                }
+                
+                // Check file type
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (!in_array($file['type'], $allowedTypes)) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.']);
+                    exit;
+                }
+                
+                // Generate filename using the user's ID
+                $stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id']]);
+                $userRow = $stmt->fetch();
+                if (!$userRow) {
+                    echo json_encode(['success' => false, 'message' => 'User not found']);
+                    exit;
+                }
+                
+                $idNumber = $userRow['id_number'];
+                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                if (empty($ext)) {
+                    $ext = 'png';
+                }
+                
+                $targetDir = "../uploads/profile_pics/";
+                if (!file_exists($targetDir)) {
+                    mkdir($targetDir, 0777, true);
+                }
+                
+                // Use unique timestamp to prevent caching issues in browser
+                $fileName = $idNumber . "_" . time() . "." . $ext;
+                $targetFile = $targetDir . $fileName;
+                
+                // Remove old profile pictures for this user to save space
+                $existingFiles = glob($targetDir . $idNumber . "_*");
+                if ($existingFiles) {
+                    foreach ($existingFiles as $exFile) {
+                        @unlink($exFile);
+                    }
+                }
+                
+                if (move_uploaded_file($file['tmp_name'], $targetFile)) {
+                    // Update database
+                    $dbPath = "uploads/profile_pics/" . $fileName;
+                    $updateStmt = $pdo->prepare("UPDATE users SET profile_pic = ? WHERE id = ?");
+                    $updateStmt->execute([$dbPath, $_SESSION['user_id']]);
+                    
+                    echo json_encode([
+                        'success' => true, 
+                        'message' => 'Profile picture uploaded successfully',
+                        'profile_pic' => $dbPath
+                    ]);
+                    exit;
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Failed to save uploaded file']);
+                    exit;
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'No file uploaded']);
+                exit;
+            }
+        }
+
+        // Update user profile (standard form update)
         $input = json_decode(file_get_contents('php://input'), true);
         
         $firstname = trim($input['firstname'] ?? '');

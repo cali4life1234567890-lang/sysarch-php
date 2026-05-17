@@ -42,6 +42,7 @@ $leaderboardStmt = $pdo->query("
         u.middlename,
         u.course,
         u.level,
+        u.profile_pic,
         COALESCE(SUM(
             CASE 
                 WHEN sr.time_out IS NOT NULL 
@@ -71,7 +72,8 @@ while ($row = $leaderboardStmt->fetch(PDO::FETCH_ASSOC)) {
         'level' => $row['level'],
         'hours_spent' => $totalHours,
         'sessions_used' => $usedSessions,
-        'total_score' => round($totalScore, 2)
+        'total_score' => round($totalScore, 2),
+        'profile_pic' => $row['profile_pic']
     ];
 }
 
@@ -182,6 +184,7 @@ $userRankJson = json_encode($userRank);
       .leaderboard-table td {
         padding: 12px 15px;
         border-bottom: 1px solid #eee;
+        color: #2d3748;
       }
       .leaderboard-table tr:hover {
         background: #f8f9fa;
@@ -204,6 +207,33 @@ $userRankJson = json_encode($userRank);
         color: #144d94;
         font-size: 18px;
       }
+      .leaderboard-name-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .leaderboard-student-name {
+        color: #2d3748;
+      }
+      .leaderboard-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+      }
+      .leaderboard-name-wrapper:hover .leaderboard-avatar {
+        transform: scale(1.08);
+      }
+      .current-user .leaderboard-avatar {
+        border-color: #1e6fd9;
+        box-shadow: 0 2px 8px rgba(30,111,217,0.25);
+      }
+      .rank-cell.rank-1 ~ .name-cell .leaderboard-avatar { border-color: #ffd700; }
+      .rank-cell.rank-2 ~ .name-cell .leaderboard-avatar { border-color: #c0c0c0; }
+      .rank-cell.rank-3 ~ .name-cell .leaderboard-avatar { border-color: #cd7f32; }
     </style>
   </head>
   <body>
@@ -303,10 +333,16 @@ $userRankJson = json_encode($userRank);
         tbody.innerHTML = leaderboardData.map(entry => {
           const isCurrentUser = entry.id_number === currentUserId;
           const rankClass = entry.rank <= 3 ? 'rank-' + entry.rank : '';
+          const avatarSrc = entry.profile_pic ? '../' + entry.profile_pic : '../imgs/emp-prof.png';
           return `
             <tr class="${isCurrentUser ? 'current-user' : ''}">
               <td class="rank-cell ${rankClass}">#${entry.rank}</td>
-              <td class="name-cell">${entry.name}</td>
+              <td class="name-cell">
+                <div class="leaderboard-name-wrapper">
+                  <img src="${avatarSrc}" alt="Avatar" class="leaderboard-avatar" />
+                  <span class="leaderboard-student-name">${entry.name}</span>
+                </div>
+              </td>
               <td>${entry.course} - ${entry.level}</td>
               <td>${entry.hours_spent}</td>
               <td>${entry.sessions_used}</td>

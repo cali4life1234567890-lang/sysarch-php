@@ -18,7 +18,7 @@ if (!$stmt->fetch()) {
 
 // Fetch all leaderboard stats
 $leaderboardStmt = $pdo->query("
-    SELECT u.id, u.id_number, u.firstname, u.middlename, u.lastname, u.course, u.level,
+    SELECT u.id, u.id_number, u.firstname, u.middlename, u.lastname, u.course, u.level, u.profile_pic,
         COALESCE(SUM(
             (strftime('%s', COALESCE(sr.time_out, datetime('now'))) - strftime('%s', sr.time_in)) / 3600.0
         ), 0) as total_hours,
@@ -49,7 +49,8 @@ while ($row = $leaderboardStmt->fetch(PDO::FETCH_ASSOC)) {
         'level' => $row['level'],
         'hours_spent' => $totalHours,
         'sessions_used' => $usedSessions,
-        'total_score' => round($totalScore, 2)
+        'total_score' => round($totalScore, 2),
+        'profile_pic' => $row['profile_pic']
     ];
     $rank++;
 }
@@ -130,9 +131,12 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                 <!-- 2nd Place (Left) -->
                 <?php if (isset($rankedData[1])): ?>
                 <div class="podium-card place-2">
-                    <div class="podium-badge badge-silver">2</div>
+                    <div class="podium-badge badge-silver">🥈</div>
                     <div class="podium-avatar-ring">
-                        <span class="podium-avatar">🥈</span>
+                        <?php 
+                        $avatarUrl = !empty($rankedData[1]['profile_pic']) ? '../' . htmlspecialchars($rankedData[1]['profile_pic']) : '../imgs/emp-prof.png';
+                        ?>
+                        <img src="<?php echo $avatarUrl; ?>" class="podium-avatar-img" alt="2nd Place">
                     </div>
                     <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[1]['name']); ?></h4>
                     <span class="podium-id"><?php echo htmlspecialchars($rankedData[1]['id_number']); ?></span>
@@ -154,9 +158,12 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                 <?php if (isset($rankedData[0])): ?>
                 <div class="podium-card place-1">
                     <div class="crown-icon">👑</div>
-                    <div class="podium-badge badge-gold">1</div>
+                    <div class="podium-badge badge-gold">🥇</div>
                     <div class="podium-avatar-ring">
-                        <span class="podium-avatar">🥇</span>
+                        <?php 
+                        $avatarUrl = !empty($rankedData[0]['profile_pic']) ? '../' . htmlspecialchars($rankedData[0]['profile_pic']) : '../imgs/emp-prof.png';
+                        ?>
+                        <img src="<?php echo $avatarUrl; ?>" class="podium-avatar-img" alt="1st Place">
                     </div>
                     <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[0]['name']); ?></h4>
                     <span class="podium-id"><?php echo htmlspecialchars($rankedData[0]['id_number']); ?></span>
@@ -177,9 +184,12 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                 <!-- 3rd Place (Right) -->
                 <?php if (isset($rankedData[2])): ?>
                 <div class="podium-card place-3">
-                    <div class="podium-badge badge-bronze">3</div>
+                    <div class="podium-badge badge-bronze">🥉</div>
                     <div class="podium-avatar-ring">
-                        <span class="podium-avatar">🥉</span>
+                        <?php 
+                        $avatarUrl = !empty($rankedData[2]['profile_pic']) ? '../' . htmlspecialchars($rankedData[2]['profile_pic']) : '../imgs/emp-prof.png';
+                        ?>
+                        <img src="<?php echo $avatarUrl; ?>" class="podium-avatar-img" alt="3rd Place">
                     </div>
                     <h4 class="podium-name"><?php echo htmlspecialchars($rankedData[2]['name']); ?></h4>
                     <span class="podium-id"><?php echo htmlspecialchars($rankedData[2]['id_number']); ?></span>
@@ -266,13 +276,17 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                     rankDisplay = '🥉 3rd';
                 }
                 
+                const avatarSrc = entry.profile_pic ? '../' + entry.profile_pic : '../imgs/emp-prof.png';
                 return `
                     <tr class="${entry.rank <= 3 ? 'top-three-row' : ''}">
                         <td><span class="rank-cell ${rankClass}">${rankDisplay}</span></td>
                         <td>
-                            <div class="student-mini-info">
-                                <strong>${escapeHtml(entry.name)}</strong>
-                                <span>ID: ${entry.id_number}</span>
+                            <div class="student-leaderboard-identity">
+                                <img src="${avatarSrc}" alt="Avatar" class="leaderboard-table-avatar" />
+                                <div class="student-mini-info">
+                                    <strong>${escapeHtml(entry.name)}</strong>
+                                    <span>ID: ${escapeHtml(entry.id_number)}</span>
+                                </div>
                             </div>
                         </td>
                         <td><span class="course-badge">${escapeHtml(entry.course)} - Lvl ${entry.level}</span></td>

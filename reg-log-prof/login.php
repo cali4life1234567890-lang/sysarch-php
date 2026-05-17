@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'level' => $user['level'],
                     'email' => $user['email'],
                     'address' => $user['address'],
+                    'profile_pic' => $user['profile_pic'],
                     'is_admin' => $isAdmin
                 ]
             ]);
