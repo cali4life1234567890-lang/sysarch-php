@@ -535,6 +535,22 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             color: #495057;
             border: 1px solid #dee2e6;
         }
+
+        /* Table Header Custom Colors (1st row) */
+        #studentsTable thead tr th {
+            background: linear-gradient(135deg, #0d3a6e 0%, #1e40af 100%) !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 3px solid #0b2e58;
+            padding: 14px 16px;
+        }
+        #studentsTable thead tr th a {
+            color: #ffffff !important;
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>

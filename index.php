@@ -583,6 +583,19 @@ $userJson = json_encode($currentUser);
               </div>
             </div>
 
+            <!-- Explorer View Toggle Switcher -->
+            <div class="explorer-view-toggle">
+              <button id="view-software-btn" class="view-toggle-btn active" onclick="setExplorerView('software')">⚙️ Software List</button>
+              <button id="view-pcs-btn" class="view-toggle-btn" onclick="setExplorerView('pcs')">💻 PC Availability</button>
+            </div>
+
+            <!-- PC Grid Status Legend (hidden by default) -->
+            <div id="pc-legend-container" class="pc-legend-container" style="display: none;">
+              <div class="legend-item"><span class="legend-dot pc-available"></span> Available</div>
+              <div class="legend-item"><span class="legend-dot pc-occupied"></span> Occupied</div>
+              <div class="legend-item"><span class="legend-dot pc-reserved"></span> Reserved</div>
+            </div>
+
             <!-- Lab Switcher Tabs -->
             <div class="software-lab-tabs">
               <button class="software-tab active" onclick="switchSoftwareLab('524')">Lab 524</button>
@@ -592,7 +605,7 @@ $userJson = json_encode($currentUser);
               <button class="software-tab" onclick="switchSoftwareLab('MAC')">MAC Lab</button>
             </div>
 
-            <!-- Software list grid container -->
+            <!-- Software / PC list grid container -->
             <div class="software-grid-container">
               <div id="software-list-grid" class="software-list-grid">
                 <p class="loading-placeholder">Loading software lists...</p>
@@ -1025,6 +1038,7 @@ $userJson = json_encode($currentUser);
       // Premium Student Dashboard Functions
       let activeSoftwareLab = '524';
       let currentSoftwareList = [];
+      let currentExplorerView = 'software';
 
       function loadPremiumDashboardData() {
         loadPremiumStats();
@@ -1150,21 +1164,90 @@ $userJson = json_encode($currentUser);
           }
         });
         
-        const grid = document.getElementById('software-list-grid');
-        if (grid) grid.innerHTML = '<p class="loading-placeholder">Fetching software list...</p>';
+        if (currentExplorerView === 'software') {
+          const grid = document.getElementById('software-list-grid');
+          if (grid) grid.innerHTML = '<p class="loading-placeholder">Fetching software list...</p>';
+          
+          fetch(`users/user_dashboard.php?action=lab_software&lab=${labNumber}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                currentSoftwareList = data.software;
+                displaySoftwareList(currentSoftwareList);
+              }
+            })
+            .catch(err => {
+              if (grid) grid.innerHTML = '<p class="error-placeholder">Failed to load software.</p>';
+              console.error('Error loading software:', err);
+            });
+        } else {
+          loadPcsForLab(labNumber);
+        }
+      }
+
+      function setExplorerView(view) {
+        currentExplorerView = view;
+        document.querySelectorAll('.view-toggle-btn').forEach(btn => btn.classList.remove('active'));
         
-        fetch(`users/user_dashboard.php?action=lab_software&lab=${labNumber}`)
+        const searchInput = document.getElementById('software-search-input');
+        const legendContainer = document.getElementById('pc-legend-container');
+        
+        if (view === 'software') {
+          document.getElementById('view-software-btn').classList.add('active');
+          if (searchInput) searchInput.style.display = 'block';
+          if (legendContainer) legendContainer.style.display = 'none';
+          
+          switchSoftwareLab(activeSoftwareLab);
+        } else {
+          document.getElementById('view-pcs-btn').classList.add('active');
+          if (searchInput) searchInput.style.display = 'none';
+          if (legendContainer) legendContainer.style.display = 'flex';
+          
+          loadPcsForLab(activeSoftwareLab);
+        }
+      }
+
+      function loadPcsForLab(labNumber) {
+        const grid = document.getElementById('software-list-grid');
+        if (grid) grid.innerHTML = '<p class="loading-placeholder">Fetching PC availability...</p>';
+        
+        fetch(`users/user_dashboard.php?action=get_lab_pc_status&lab=${labNumber}`)
           .then(res => res.json())
           .then(data => {
             if (data.success) {
-              currentSoftwareList = data.software;
-              displaySoftwareList(currentSoftwareList);
+              displayPcGrid(data.pcs);
+            } else {
+              if (grid) grid.innerHTML = `<p class="error-placeholder">Failed to load PC status: ${data.message || 'Unknown error'}</p>`;
             }
           })
           .catch(err => {
-            if (grid) grid.innerHTML = '<p class="error-placeholder">Failed to load software.</p>';
-            console.error('Error loading software:', err);
+            if (grid) grid.innerHTML = '<p class="error-placeholder">Failed to load PC status.</p>';
+            console.error('Error loading PC status:', err);
           });
+      }
+
+      function displayPcGrid(pcs) {
+        const grid = document.getElementById('software-list-grid');
+        if (!grid) return;
+        
+        if (!pcs || pcs.length === 0) {
+          grid.innerHTML = '<p class="no-software">No PCs configured for this laboratory.</p>';
+          return;
+        }
+        
+        let html = '<div class="dashboard-pc-grid">';
+        pcs.forEach(pc => {
+          const statusClass = pc.status === 'available' ? 'pc-available' : (pc.status === 'occupied' ? 'pc-occupied' : 'pc-reserved');
+          const statusText = pc.status.charAt(0).toUpperCase() + pc.status.slice(1);
+          
+          html += `<div class="dashboard-pc-card ${statusClass}">
+            <span class="pc-num">${pc.pc_number}</span>
+            <span class="pc-status">${statusText}</span>
+          </div>`;
+        });
+        html += '</div>';
+        
+        grid.innerHTML = html;
       }
 
       function displaySoftwareList(list) {
