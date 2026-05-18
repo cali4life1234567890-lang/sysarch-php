@@ -85,6 +85,7 @@ $hasPendingReservation = $reservationCheckStmt->fetch() !== false;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Reservations - CCS Sit-In Monitoring System</title>
+    <link rel="icon" href="../imgs/ccslogo.png" type="image/png" />
     <link rel="stylesheet" href="../style.css" />
     <script src="../script.js"></script>
     <script>

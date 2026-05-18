@@ -48,6 +48,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search - CCS Sit-In System</title>
+    <link rel="icon" href="../imgs/ccslogo.png" type="image/png" />
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="admin.css">
 </head>
