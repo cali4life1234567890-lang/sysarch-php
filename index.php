@@ -3,6 +3,13 @@
 require_once 'database/db.php';
 startSession();
 
+// Auto-copy uploaded campus background image if it exists in Gemini app data folder
+$source_img = 'C:\\Users\\cali4\\.gemini\\antigravity\\brain\\04c11c9c-d006-42f4-923a-e9af740bd287\\media__1779062561131.png';
+$dest_img = __DIR__ . '/imgs/uc-campus.png';
+if (file_exists($source_img) && !file_exists($dest_img)) {
+    @copy($source_img, $dest_img);
+}
+
 // Check if user is already logged in via session
 $currentUser = null;
 $isAdmin = false;
@@ -42,6 +49,66 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['token'])) {
 
 // Pass user data to JavaScript
 $userJson = json_encode($currentUser);
+
+// Get leaderboard data for Community Page
+$commLeaderboardStmt = $pdo->query("
+    SELECT 
+        u.id_number,
+        u.lastname,
+        u.firstname,
+        u.middlename,
+        u.course,
+        u.level,
+        u.profile_pic,
+        COALESCE(SUM(
+            CASE 
+                WHEN sr.time_out IS NOT NULL 
+                THEN (julianday(sr.time_out) - julianday(sr.time_in)) * 24 
+                ELSE 0 
+            END
+        ), 0) as total_hours,
+        COALESCE((30 - us.remaining_sessions), 30) as used_sessions
+    FROM users u
+    LEFT JOIN sitin_records sr ON u.id = sr.user_id
+    LEFT JOIN user_sessions us ON u.id = us.user_id
+    WHERE u.id_number != '2664388'
+    GROUP BY u.id
+    ORDER BY total_hours DESC
+");
+
+$commLeaderboardData = [];
+while ($row = $commLeaderboardStmt->fetch(PDO::FETCH_ASSOC)) {
+    $totalHours = round($row['total_hours'], 2);
+    $usedSessions = $row['used_sessions'];
+    $totalScore = (0.60 * $totalHours) + (0.40 * $usedSessions);
+    
+    $commLeaderboardData[] = [
+        'id_number' => $row['id_number'],
+        'name' => trim($row['firstname'] . ' ' . ($row['middlename'] ? $row['middlename'] . ' ' : '') . $row['lastname']),
+        'course' => $row['course'],
+        'level' => $row['level'],
+        'hours_spent' => $totalHours,
+        'sessions_used' => $usedSessions,
+        'total_score' => round($totalScore, 2),
+        'profile_pic' => $row['profile_pic']
+    ];
+}
+
+// Sort by total score descending
+usort($commLeaderboardData, function($a, $b) {
+    if ($b['total_score'] == $a['total_score']) {
+        return $b['hours_spent'] - $a['hours_spent'];
+    }
+    return ($b['total_score'] - $a['total_score']) > 0 ? 1 : -1;
+});
+
+// Assign ranks
+$rank = 1;
+foreach ($commLeaderboardData as &$entry) {
+    $entry['rank'] = $rank++;
+}
+
+$commLeaderboardJson = json_encode($commLeaderboardData);
 ?>
 <!doctype html>
 <html lang="en">
@@ -679,7 +746,7 @@ $userJson = json_encode($currentUser);
 
     <!-- Regular User Sections (Guest Home - Only for non-logged-in users) -->
     <?php if (!$currentUser && !$isAdmin): ?>
-    <div id="home" class="content-section">
+    <div id="home" class="content-section guest-reveal">
       <div class="home-hero">
         <h1>Welcome to CCS Sit-In Monitoring System</h1>
         <p class="home-tagline">University of Cebu - College of Computer Studies</p>
@@ -709,7 +776,70 @@ $userJson = json_encode($currentUser);
       </div>
     </div>
 
-    <div id="about" class="content-section" style="display: none">
+    <div id="community" class="content-section guest-reveal">
+      <div class="community-header-banner">
+        <h1>CCS Student Community</h1>
+        <p>Connect with peers, view university announcements, and celebrate our most active lab members!</p>
+      </div>
+
+      <div class="community-grid">
+        <!-- Left Side: Community News & Announcements -->
+        <div class="community-left-panel">
+          <div class="community-card">
+            <h2>Welcome to CCS Sit-In Community</h2>
+            <p>Here you can keep track of ongoing events, lab notices, and see which students are dedicating the most time to expanding their programming skills in our laboratory facilities.</p>
+          </div>
+          <div class="community-card event-highlight">
+            <h3>📢 Laboratory Practice & Study Sessions</h3>
+            <p>Students are encouraged to maximize their 30 sit-in sessions per semester. Build applications, complete course laboratory tasks, and climb the Leaderboard!</p>
+          </div>
+        </div>
+
+        <!-- Right Side: Top Students Leaderboard -->
+        <div class="community-right-panel">
+          <div class="community-card community-leaderboard-card">
+            <h2 class="section-title">🏆 Top Sit-In Achievers</h2>
+            
+            <!-- Podium for top 3 with GIANT profile pictures -->
+            <div class="comm-podium">
+              <!-- 2nd Place -->
+              <div class="comm-podium-card rank-2" id="comm-podium-2">
+                <!-- Will be populated dynamically -->
+              </div>
+
+              <!-- 1st Place -->
+              <div class="comm-podium-card rank-1" id="comm-podium-1">
+                <!-- Will be populated dynamically -->
+              </div>
+
+              <!-- 3rd Place -->
+              <div class="comm-podium-card rank-3" id="comm-podium-3">
+                <!-- Will be populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Rankings Table for Ranks 4+ -->
+            <div class="comm-table-container">
+              <table class="comm-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Student</th>
+                    <th>Course</th>
+                    <th style="text-align: right;">Score</th>
+                  </tr>
+                </thead>
+                <tbody id="comm-leaderboard-body">
+                  <!-- Will be populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="about" class="content-section guest-reveal">
       <h1>About Us</h1>
       <div class="about-content">
         <div class="about-card">
@@ -718,21 +848,115 @@ $userJson = json_encode($currentUser);
         </div>
       </div>
     </div>
-
-    <div id="community" class="content-section" style="display: none">
-      <h1>Community</h1>
-      <div class="community-content">
-        <div class="community-card">
-          <h2>This is the Community Page</h2>
-          <p>This is where the community can see the events and activities of the university.</p>
-        </div>
-      </div>
-    </div>
     <?php endif; ?>
     
     <script>
+      const commLeaderboardData = <?php echo isset($commLeaderboardJson) ? $commLeaderboardJson : '[]'; ?>;
+
+      function renderCommunityLeaderboard() {
+        if (!commLeaderboardData || commLeaderboardData.length === 0) return;
+        
+        // 1. Render Podium (1st, 2nd, 3rd)
+        const first = commLeaderboardData[0];
+        const second = commLeaderboardData[1];
+        const third = commLeaderboardData[2];
+
+        // 1st Place Card
+        const p1Card = document.getElementById('comm-podium-1');
+        if (p1Card && first) {
+          const avatar = first.profile_pic ? first.profile_pic : 'imgs/emp-prof.png';
+          p1Card.innerHTML = `
+            <div class="comm-crown">👑</div>
+            <div class="comm-avatar-wrapper rank-1-avatar">
+              <img src="${avatar}" alt="1st Place" class="comm-giant-avatar" />
+              <div class="comm-medal-badge">🥇</div>
+            </div>
+            <div class="comm-podium-info">
+              <h4 class="comm-podium-name">${first.name}</h4>
+              <span class="comm-podium-details">${first.course} - Lvl ${first.level}</span>
+              <div class="comm-score-tag">${first.total_score} pts</div>
+            </div>
+          `;
+        } else if (p1Card) {
+          p1Card.style.display = 'none';
+        }
+
+        // 2nd Place Card
+        const p2Card = document.getElementById('comm-podium-2');
+        if (p2Card && second) {
+          const avatar = second.profile_pic ? second.profile_pic : 'imgs/emp-prof.png';
+          p2Card.innerHTML = `
+            <div class="comm-avatar-wrapper rank-2-avatar">
+              <img src="${avatar}" alt="2nd Place" class="comm-giant-avatar" />
+              <div class="comm-medal-badge">🥈</div>
+            </div>
+            <div class="comm-podium-info">
+              <h4 class="comm-podium-name">${second.name}</h4>
+              <span class="comm-podium-details">${second.course} - Lvl ${second.level}</span>
+              <div class="comm-score-tag">${second.total_score} pts</div>
+            </div>
+          `;
+        } else if (p2Card) {
+          p2Card.style.display = 'none';
+        }
+
+        // 3rd Place Card
+        const p3Card = document.getElementById('comm-podium-3');
+        if (p3Card && third) {
+          const avatar = third.profile_pic ? third.profile_pic : 'imgs/emp-prof.png';
+          p3Card.innerHTML = `
+            <div class="comm-avatar-wrapper rank-3-avatar">
+              <img src="${avatar}" alt="3rd Place" class="comm-giant-avatar" />
+              <div class="comm-medal-badge">🥉</div>
+            </div>
+            <div class="comm-podium-info">
+              <h4 class="comm-podium-name">${third.name}</h4>
+              <span class="comm-podium-details">${third.course} - Lvl ${third.level}</span>
+              <div class="comm-score-tag">${third.total_score} pts</div>
+            </div>
+          `;
+        } else if (p3Card) {
+          p3Card.style.display = 'none';
+        }
+
+        // 2. Render Ranks 4+ in table
+        const tbody = document.getElementById('comm-leaderboard-body');
+        if (tbody) {
+          const others = commLeaderboardData.slice(3);
+          if (others.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">Complete sit-ins to join ranks!</td></tr>';
+            return;
+          }
+          
+          tbody.innerHTML = others.map(entry => {
+            const avatar = entry.profile_pic ? entry.profile_pic : 'imgs/emp-prof.png';
+            return `
+              <tr>
+                <td class="comm-rank-number">#${entry.rank}</td>
+                <td>
+                  <div class="comm-student-row">
+                    <img src="${avatar}" alt="Avatar" class="comm-table-regular-avatar" />
+                    <span class="comm-student-row-name">${entry.name}</span>
+                  </div>
+                </td>
+                <td><span class="comm-course-badge">${entry.course}-${entry.level}</span></td>
+                <td class="comm-score-tag-small" style="text-align: right;"><strong>${entry.total_score}</strong></td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+
       // Initialize UI based on PHP session data
       document.addEventListener('DOMContentLoaded', function() {
+        // Render the premium community leaderboard
+        renderCommunityLeaderboard();
+
+        // Initialize Smart Auto-Hiding Navbar
+        if (typeof initSmartNavbar === 'function') {
+          initSmartNavbar();
+        }
+
         // Check for section parameter in URL FIRST (before default UI initialization)
         const urlParams = new URLSearchParams(window.location.search);
         const sectionParam = urlParams.get('section');

@@ -7,12 +7,17 @@ let currentUser = null;
 // Show a specific section (home, about, community, user-*, admin-*)
 function showSection(sectionId) {
     console.log('[Navigation] showSection called with:', sectionId);
-    // Hide all sections - regular user sections
     const regularSections = ['home', 'about', 'community'];
+    
+    // Check if showing one of the guest sections
+    const isRegularSection = regularSections.includes(sectionId);
+    
+    // Hide all sections - regular user sections
     regularSections.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
-            element.style.display = 'none';
+            // If navigating to a guest section, keep all of them displayed!
+            element.style.display = isRegularSection ? 'block' : 'none';
         }
     });
     
@@ -41,9 +46,19 @@ function showSection(sectionId) {
     }
     
     // Show the selected section
-    const selectedSection = document.getElementById(sectionId);
-    if (selectedSection) {
-        selectedSection.style.display = 'block';
+    if (!isRegularSection) {
+        const selectedSection = document.getElementById(sectionId);
+        if (selectedSection) {
+            selectedSection.style.display = 'block';
+        }
+    } else {
+        // Scroll to the selected regular guest section smoothly
+        const targetElement = document.getElementById(sectionId);
+        if (targetElement) {
+            setTimeout(() => {
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 50);
+        }
     }
     
     // Load admin data if admin-home is shown
@@ -831,4 +846,39 @@ function initAIChatBot() {
             chatBody.scrollTop = chatBody.scrollHeight;
         }, 800);
     }
+}
+
+// Smart auto-hiding navbar scroll logic
+function initSmartNavbar() {
+    console.log('[Animation] Initializing smart auto-hiding navbar scroll listener...');
+    const navbar = document.querySelector('.navbar');
+    if (!navbar) return;
+    
+    let lastScrollY = window.scrollY;
+    const threshold = 10; // minimum scroll distance in pixels to trigger hide/show
+    
+    window.addEventListener('scroll', () => {
+        const currentScrollY = window.scrollY;
+        
+        // Always show the navbar at the very top of the page
+        if (currentScrollY <= 5) {
+            navbar.classList.remove('nav-hidden');
+            lastScrollY = currentScrollY;
+            return;
+        }
+        
+        // Check if we scrolled more than the threshold to avoid micro-adjustments
+        const scrollDiff = Math.abs(currentScrollY - lastScrollY);
+        if (scrollDiff < threshold) return;
+        
+        if (currentScrollY > lastScrollY) {
+            // Scrolling down -> hide the topbar
+            navbar.classList.add('nav-hidden');
+        } else {
+            // Scrolling up -> reveal the topbar
+            navbar.classList.remove('nav-hidden');
+        }
+        
+        lastScrollY = currentScrollY;
+    }, { passive: true });
 }
