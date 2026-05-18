@@ -98,6 +98,31 @@ try {
         )
     ");
 
+    // Create notifications table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT,
+            type TEXT DEFAULT 'info',
+            is_read INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ");
+
+    // Create announcements table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            date TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+
     // Create admin account if not exists
     $adminCheck = $pdo->query("SELECT id FROM users WHERE id_number = '2664388'");
     if (!$adminCheck->fetch()) {

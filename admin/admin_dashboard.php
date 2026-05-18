@@ -58,6 +58,15 @@ switch ($action) {
     case 'post_announcement':
         postAnnouncement();
         break;
+    case 'get_announcements':
+        getAnnouncements();
+        break;
+    case 'edit_announcement':
+        editAnnouncement();
+        break;
+    case 'delete_announcement':
+        deleteAnnouncement();
+        break;
     case 'delete_all_feedback':
         deleteAllFeedback();
         break;
@@ -600,18 +609,85 @@ function postAnnouncement() {
         return;
     }
     
+    // Generate date in format: YYYY-Mon-DD (e.g. 2026-May-18)
+    $dateStr = date('Y-M-d');
+    
     try {
-        // Get all user IDs
+        $pdo->beginTransaction();
+        
+        // 1. Insert into announcements table
+        $announceStmt = $pdo->prepare("INSERT INTO announcements (title, message, date) VALUES (?, ?, ?)");
+        $announceStmt->execute([$title, $message, $dateStr]);
+        
+        // 2. Get all user IDs
         $stmt = $pdo->query("SELECT id FROM users WHERE id_number != '2664388'");
         $users = $stmt->fetchAll();
         
-        // Create notification for each user
+        // 3. Create notification for each user
         foreach ($users as $user) {
             $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'announcement')");
             $notifStmt->execute([$user['id'], $title, $message]);
         }
         
-        echo json_encode(['success' => true, 'message' => 'Announcement posted to ' . count($users) . ' users']);
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Announcement posted successfully']);
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getAnnouncements() {
+    global $pdo;
+    try {
+        $stmt = $pdo->query("SELECT id, title, message, date, created_at FROM announcements ORDER BY id DESC LIMIT 50");
+        $announcements = $stmt->fetchAll();
+        echo json_encode(['success' => true, 'announcements' => $announcements]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function editAnnouncement() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $id = isset($input['id']) ? (int)$input['id'] : 0;
+    $message = trim($input['message'] ?? '');
+    
+    if (empty($id) || empty($message)) {
+        echo json_encode(['success' => false, 'message' => 'ID and message are required']);
+        return;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("UPDATE announcements SET message = ? WHERE id = ?");
+        $stmt->execute([$message, $id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Announcement updated successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function deleteAnnouncement() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $id = isset($input['id']) ? (int)$input['id'] : 0;
+    
+    if (empty($id)) {
+        echo json_encode(['success' => false, 'message' => 'ID is required']);
+        return;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Announcement deleted successfully']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

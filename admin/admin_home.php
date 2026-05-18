@@ -525,14 +525,26 @@ $adminName = $_SESSION['name'] ?? 'Admin';
 
     // Load admin announcements
     function loadAdminAnnouncements() {
-        const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
-        displayAdminAnnouncements(announcements);
+        fetch('admin_dashboard.php?action=get_announcements')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    displayAdminAnnouncements(data.announcements);
+                } else {
+                    console.error('Failed to load announcements:', data.message);
+                }
+            })
+            .catch(err => console.error('Error loading announcements:', err));
     }
+
+    let activeAnnouncements = [];
 
     // Display admin announcements
     function displayAdminAnnouncements(announcements) {
         const list = document.getElementById('admin-announcement-list');
         if (!list) return;
+
+        activeAnnouncements = announcements;
 
         if (announcements.length === 0) {
             list.innerHTML = '<p class="no-announcements">No announcements yet</p>';
@@ -544,15 +556,111 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             html += `<div class="feed-item">
                 <div class="feed-item-accent"></div>
                 <div class="feed-item-content">
-                    <div class="feed-item-header">
+                    <div class="feed-item-header" style="display: flex; align-items: center; width: 100%;">
                         <strong class="feed-item-title">CCS Admin</strong>
-                        <span class="feed-item-time">${announcement.date}</span>
+                        <span class="feed-item-time" style="margin-left: 8px;">${announcement.date}</span>
+                        <div class="feed-item-actions" style="margin-left: auto; display: flex; gap: 8px;">
+                            <button class="action-btn edit-btn" onclick="openEditAnnouncementModal(${announcement.id})" title="Edit Announcement" style="background: none; border: none; cursor: pointer; font-size: 1rem; padding: 4px; border-radius: 4px; transition: transform 0.2s;">✏️</button>
+                            <button class="action-btn delete-btn" onclick="confirmDeleteAnnouncement(${announcement.id})" title="Delete Announcement" style="background: none; border: none; cursor: pointer; font-size: 1rem; padding: 4px; border-radius: 4px; transition: transform 0.2s;">🗑️</button>
+                        </div>
                     </div>
-                    <p class="feed-item-body">${announcement.text}</p>
+                    <p class="feed-item-body">${announcement.message}</p>
                 </div>
             </div>`;
         });
         list.innerHTML = html;
+    }
+
+    // Open Edit Announcement Modal
+    function openEditAnnouncementModal(id) {
+        const announcement = activeAnnouncements.find(ann => ann.id == id);
+        if (!announcement) return;
+        
+        // Remove existing edit modal if any
+        const existing = document.getElementById('editAnnouncementModal');
+        if (existing) existing.remove();
+
+        const modalHtml = `
+        <div id="editAnnouncementModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+            <div style="background: var(--bg-card, #2b2b36); border: 1px solid var(--border-color, #3f3f4e); border-radius: 12px; width: 500px; max-width: 90%; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative; color: var(--text-main, #ffffff);">
+                <span onclick="closeEditAnnouncementModal()" style="position: absolute; top: 16px; right: 20px; font-size: 24px; cursor: pointer; color: var(--text-muted, #8b8b9e); transition: color 0.2s;" onmouseover="this.style.color='#ff4a4a'" onmouseout="this.style.color='var(--text-muted, #8b8b9e)'">&times;</span>
+                <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">✏️ Edit Announcement</h3>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; font-size: 0.875rem; color: var(--text-muted, #8b8b9e);">Announcement Message</label>
+                    <textarea id="edit-announcement-text" style="width: 100%; padding: 12px; border: 1px solid var(--border-color, #3f3f4e); border-radius: 8px; background: var(--bg-dark, #1c1c24); color: var(--text-main, #ffffff); font-family: inherit; font-size: 0.95rem; resize: vertical; box-sizing: border-box;" rows="5">${announcement.message}</textarea>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                    <button class="btn-secondary" onclick="closeEditAnnouncementModal()" style="padding: 10px 16px; border-radius: 6px; border: 1px solid var(--border-color, #3f3f4e); background: transparent; color: var(--text-main, #ffffff); cursor: pointer;">Cancel</button>
+                    <button class="btn-primary" onclick="submitEditAnnouncement(${id})" style="padding: 10px 20px; border-radius: 6px; border: none; background: var(--accent-color, #3b82f6); color: white; cursor: pointer; font-weight: 600;">Save Changes</button>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    // Close Edit Announcement Modal
+    function closeEditAnnouncementModal() {
+        const modal = document.getElementById('editAnnouncementModal');
+        if (modal) modal.remove();
+    }
+
+    // Submit Edit Announcement
+    function submitEditAnnouncement(id) {
+        const text = document.getElementById('edit-announcement-text').value.trim();
+        if (!text) {
+            alert('Please enter announcement text');
+            return;
+        }
+
+        fetch('admin_dashboard.php?action=edit_announcement', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: id,
+                message: text
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeEditAnnouncementModal();
+                loadAdminAnnouncements();
+                alert('Announcement updated successfully!');
+            } else {
+                alert('Error updating announcement: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error('Error updating announcement:', err);
+            alert('Failed to update announcement due to a network or server error.');
+        });
+    }
+
+    // Confirm Delete Announcement
+    function confirmDeleteAnnouncement(id) {
+        if (!confirm('Are you sure you want to delete this announcement? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch('admin_dashboard.php?action=delete_announcement', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: id })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadAdminAnnouncements();
+                alert('Announcement deleted successfully!');
+            } else {
+                alert('Error deleting announcement: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error('Error deleting announcement:', err);
+            alert('Failed to delete announcement due to a network or server error.');
+        });
     }
 
     // Post new announcement
@@ -563,24 +671,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             return;
         }
 
-        // Get current date in yyyy-mon-dd format
-        const now = new Date();
-        const year = now.getFullYear();
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const mon = months[now.getMonth()];
-        const day = String(now.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${mon}-${day}`;
-
-        // Save to localStorage (for admin view)
-        const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
-        announcements.unshift({
-            text: text,
-            date: dateStr,
-            postedAt: now.toISOString()
-        });
-        localStorage.setItem('admin_announcements', JSON.stringify(announcements));
-
-        // Also save to database for user notifications
+        // Save to database for user notifications and announcements list
         fetch('admin_dashboard.php?action=post_announcement', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -591,17 +682,20 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         })
         .then(res => res.json())
         .then(data => {
-            console.log('Announcement saved:', data);
+            if (data.success) {
+                // Clear textarea
+                document.getElementById('admin-announcement-text').value = '';
+                // Reload announcements
+                loadAdminAnnouncements();
+                alert('Announcement posted successfully!');
+            } else {
+                alert('Error posting announcement: ' + data.message);
+            }
         })
-        .catch(err => console.error('Error saving announcement:', err));
-
-        // Clear textarea
-        document.getElementById('admin-announcement-text').value = '';
-
-        // Reload announcements
-        loadAdminAnnouncements();
-
-        alert('Announcement posted successfully!');
+        .catch(err => {
+            console.error('Error saving announcement:', err);
+            alert('Failed to post announcement due to a network or server error.');
+        });
     }
     </script>
     

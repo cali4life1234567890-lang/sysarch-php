@@ -93,6 +93,9 @@ case 'reset_all_passwords':
          break;
      case 'leaderboard':
          getLeaderboard();
+          break;
+      case 'get_announcements':
+          getAnnouncements();
          break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
@@ -1202,6 +1205,17 @@ function getLabSoftware() {
         }
         $software = $stmt->fetchAll();
         echo json_encode(['success' => true, 'software' => $software]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getAnnouncements() {
+    global $pdo;
+    try {
+        $stmt = $pdo->query("SELECT id, title, message, date, created_at FROM announcements ORDER BY id DESC LIMIT 20");
+        $announcements = $stmt->fetchAll();
+        echo json_encode(['success' => true, 'announcements' => $announcements]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

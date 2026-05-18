@@ -3334,7 +3334,7 @@ span {
 
 /* Premium Glassmorphic Theme Overrides */
 .navbar {
-  background-color: #1e6fd9 !important;
+  background-color: #144d94 !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 3px solid rgba(20, 77, 148, 0.3) !important;
@@ -3366,6 +3366,28 @@ span {
 /* Let the general content sections transparently blend with background */
 .content-section {
   background: transparent !important;
+}
+
+/* Custom Footnote Styling */
+.site-footer {
+  text-align: center;
+  padding: 25px 20px;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.25) !important;
+  margin-top: 80px;
+}
+
+.site-footer p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #144d94;
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 

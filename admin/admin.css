@@ -1935,4 +1935,24 @@ td:first-child:has(.rank-3) + td .leaderboard-table-avatar {
     box-shadow: 0 0 10px rgba(205, 127, 50, 0.2);
 }
 
+/* Announcement Actions Styling */
+.feed-item-actions .action-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+}
+
+.feed-item-actions .action-btn:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+.feed-item-actions .edit-btn:hover {
+    background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.feed-item-actions .delete-btn:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+
 

@@ -849,6 +849,10 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
       </div>
     </div>
     <?php endif; ?>
+
+    <footer class="site-footer">
+      <p>Cali John Kiesho Camilo - 2026</p>
+    </footer>
     
     <script>
       const commLeaderboardData = <?php echo isset($commLeaderboardJson) ? $commLeaderboardJson : '[]'; ?>;
@@ -1512,23 +1516,29 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         const list = document.getElementById('premium-announcements-list');
         if (!list) return;
         
-        const announcements = JSON.parse(localStorage.getItem('admin_announcements') || '[]');
-        if (announcements.length === 0) {
-          list.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
-          return;
-        }
-        
-        let html = '';
-        announcements.forEach(announcement => {
-          html += `<div class="announcement-item-premium">
-            <div class="announcement-header-premium">
-              <strong>CCS Admin</strong>
-              <span class="announcement-date-premium">${announcement.date}</span>
-            </div>
-            <p>${announcement.text}</p>
-          </div>`;
-        });
-        list.innerHTML = html;
+        fetch('users/user_dashboard.php?action=get_announcements')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.announcements && data.announcements.length > 0) {
+              let html = '';
+              data.announcements.forEach(announcement => {
+                html += `<div class="announcement-item-premium">
+                  <div class="announcement-header-premium">
+                    <strong>CCS Admin</strong>
+                    <span class="announcement-date-premium">${announcement.date}</span>
+                  </div>
+                  <p>${announcement.message}</p>
+                </div>`;
+              });
+              list.innerHTML = html;
+            } else {
+              list.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
+            }
+          })
+          .catch(err => {
+            console.error('Error loading premium announcements:', err);
+            list.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
+          });
       }
 
       // Load user profile picture
@@ -1706,33 +1716,30 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
 
       // Load announcements from admin
       function loadAnnouncements() {
-        // For now, announcements will come from a placeholder - in production, this would fetch from a database
         const announcementList = document.getElementById('announcement-list');
         if (!announcementList) return;
 
-        // Check if there's a stored announcement
-        let announcements = [];
-        try {
-          const stored = localStorage.getItem('admin_announcements');
-          if (stored) {
-            announcements = JSON.parse(stored);
-          }
-        } catch (e) {}
-
-        if (announcements.length === 0) {
-          announcementList.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
-          return;
-        }
-
-        let html = '';
-        announcements.forEach(ann => {
-          html += `<div class="announcement-item">
-            <strong>CCS Admin</strong>
-            <p>${ann.text || ''}</p>
-            <small>${ann.date || ''}</small>
-          </div>`;
-        });
-        announcementList.innerHTML = html;
+        fetch('users/user_dashboard.php?action=get_announcements')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.announcements && data.announcements.length > 0) {
+              let html = '';
+              data.announcements.forEach(ann => {
+                html += `<div class="announcement-item">
+                  <strong>CCS Admin</strong>
+                  <p>${ann.message || ''}</p>
+                  <small>${ann.date || ''}</small>
+                </div>`;
+              });
+              announcementList.innerHTML = html;
+            } else {
+              announcementList.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
+            }
+          })
+          .catch(err => {
+            console.error('Error loading announcements:', err);
+            announcementList.innerHTML = '<p class="no-announcements">No announcements from admin</p>';
+          });
       }
 
       // Preview profile picture before upload
