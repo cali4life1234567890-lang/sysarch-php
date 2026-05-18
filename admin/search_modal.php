@@ -403,7 +403,26 @@ function showSitinModal(idno, name, sessions) {
             </div>
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Purpose *</label>
-                <input type="text" id="sitinPurpose" placeholder="Enter purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+                <select id="sitinPurpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" onchange="handleAdminSitinPurposeChange()">
+                  <option value="" disabled selected>Select Purpose/Language</option>
+                  <option value="Java">Java</option>
+                  <option value="Python">Python</option>
+                  <option value="C++">C++</option>
+                  <option value="C#">C#</option>
+                  <option value="C">C</option>
+                  <option value="PHP">PHP</option>
+                  <option value="JavaScript">JavaScript</option>
+                  <option value="HTML/CSS">HTML/CSS</option>
+                  <option value="SQL">SQL</option>
+                  <option value="ASP.NET">ASP.NET</option>
+                  <option value="Ruby">Ruby</option>
+                  <option value="Swift">Swift</option>
+                  <option value="Kotlin">Kotlin</option>
+                  <option value="Go">Go</option>
+                  <option value="TypeScript">TypeScript</option>
+                  <option value="Others">Others</option>
+                </select>
+                <input type="text" id="sitinPurposeOther" placeholder="Specify custom purpose..." style="display: none; margin-top: 10px; width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" />
             </div>
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Laboratory *</label>
@@ -525,6 +544,20 @@ function closePCModal() {
     }
 }
 
+function handleAdminSitinPurposeChange() {
+    var select = document.getElementById('sitinPurpose');
+    var otherInput = document.getElementById('sitinPurposeOther');
+    if (select.value === 'Others') {
+        otherInput.style.display = 'block';
+        otherInput.required = true;
+        otherInput.focus();
+    } else {
+        otherInput.style.display = 'none';
+        otherInput.required = false;
+        otherInput.value = '';
+    }
+}
+
 function closeSitinModal() {
     var modal = document.getElementById('sitinModal');
     if (modal) {
@@ -535,6 +568,14 @@ function closeSitinModal() {
 async function submitSitin() {
     var idno = document.getElementById('sitinIdNumber').value;
     var purpose = document.getElementById('sitinPurpose').value.trim();
+    if (purpose === 'Others') {
+        var otherText = document.getElementById('sitinPurposeOther').value.trim();
+        if (!otherText) {
+            alert('Please specify custom purpose');
+            return;
+        }
+        purpose = 'Others: ' + otherText;
+    }
     var lab = document.getElementById('sitinLab').value;
     var pc = document.getElementById('selectedPc').value;
 

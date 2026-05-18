@@ -763,23 +763,90 @@ function getAnalyticsData() {
             ];
         }
 
-        // 3. Purpose distribution
+        // 3. Purpose distribution - Categorize non-programming languages as "Others"
         $stmt = $pdo->query("
             SELECT purpose, COUNT(*) as count 
             FROM sitin_records 
             WHERE purpose IS NOT NULL AND purpose != ''
-            GROUP BY purpose 
-            ORDER BY count DESC 
-            LIMIT 6
+            GROUP BY purpose
         ");
         $purposes = $stmt->fetchAll();
-        $purposeData = [];
+        
+        $grouped = [];
+        $othersCount = 0;
+        
+        $programmingLanguages = [
+            'java', 'python', 'c++', 'c#', 'c', 'php', 'javascript', 'html/css', 'sql', 'asp.net', 'ruby', 'swift', 'kotlin', 'go', 'typescript', 'rust', 'perl', 'scala', 'haskell', 'r', 'dart', 'assembly', 'cobol', 'fortran', 'matlab', 'vb.net', 'visual basic', 'bash', 'powershell', 'objective-c', 'html', 'css', 'programming'
+        ];
+        
         foreach ($purposes as $row) {
+            $rawPurpose = trim($row['purpose']);
+            $count = intval($row['count']);
+            
+            // Clean up "Others: " prefix if present
+            $cleanedPurpose = $rawPurpose;
+            if (stripos($rawPurpose, 'others:') === 0) {
+                $cleanedPurpose = trim(substr($rawPurpose, 7));
+            }
+            
+            $lower = strtolower($cleanedPurpose);
+            
+            // Check if it matches a known programming language
+            if (in_array($lower, $programmingLanguages)) {
+                // Normalize names for perfect presentation
+                $display = $cleanedPurpose;
+                if ($lower === 'java') $display = 'Java';
+                elseif ($lower === 'python') $display = 'Python';
+                elseif ($lower === 'c++') $display = 'C++';
+                elseif ($lower === 'c#') $display = 'C#';
+                elseif ($lower === 'c') $display = 'C';
+                elseif ($lower === 'php') $display = 'PHP';
+                elseif ($lower === 'javascript') $display = 'JavaScript';
+                elseif ($lower === 'html/css' || $lower === 'html' || $lower === 'css') $display = 'HTML/CSS';
+                elseif ($lower === 'sql') $display = 'SQL';
+                elseif ($lower === 'asp.net') $display = 'ASP.NET';
+                elseif ($lower === 'ruby') $display = 'Ruby';
+                elseif ($lower === 'swift') $display = 'Swift';
+                elseif ($lower === 'kotlin') $display = 'Kotlin';
+                elseif ($lower === 'go') $display = 'Go';
+                elseif ($lower === 'typescript') $display = 'TypeScript';
+                else $display = ucfirst($cleanedPurpose);
+                
+                if (!isset($grouped[$display])) {
+                    $grouped[$display] = 0;
+                }
+                $grouped[$display] += $count;
+            } else {
+                $othersCount += $count;
+            }
+        }
+        
+        // Sort programming languages by count descending
+        arsort($grouped);
+        
+        $purposeData = [];
+        foreach ($grouped as $purpose => $count) {
             $purposeData[] = [
-                'purpose' => ucfirst($row['purpose']),
-                'count' => intval($row['count'])
+                'purpose' => $purpose,
+                'count' => $count
             ];
         }
+        
+        // Add others count if present
+        if ($othersCount > 0) {
+            $purposeData[] = [
+                'purpose' => 'Others',
+                'count' => $othersCount
+            ];
+        }
+        
+        // Re-sort the final purposeData so that it remains sorted by count descending
+        usort($purposeData, function($a, $b) {
+            return $b['count'] - $a['count'];
+        });
+        
+        // Limit to 6 items to match original behavior
+        $purposeData = array_slice($purposeData, 0, 6);
 
         // 4. Monthly Lab Usage (total records per lab)
         $labTotalUsage = [];

@@ -738,7 +738,26 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
             <div class="form-row">
               <div class="form-group">
                 <label for="sitin-purpose">Purpose:</label>
-                <input type="text" id="sitin-purpose" placeholder="Enter purpose" required />
+                <select id="sitin-purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;" onchange="handleSitInPurposeChange()">
+                  <option value="" disabled selected>Select Purpose/Language</option>
+                  <option value="Java">Java</option>
+                  <option value="Python">Python</option>
+                  <option value="C++">C++</option>
+                  <option value="C#">C#</option>
+                  <option value="C">C</option>
+                  <option value="PHP">PHP</option>
+                  <option value="JavaScript">JavaScript</option>
+                  <option value="HTML/CSS">HTML/CSS</option>
+                  <option value="SQL">SQL</option>
+                  <option value="ASP.NET">ASP.NET</option>
+                  <option value="Ruby">Ruby</option>
+                  <option value="Swift">Swift</option>
+                  <option value="Kotlin">Kotlin</option>
+                  <option value="Go">Go</option>
+                  <option value="TypeScript">TypeScript</option>
+                  <option value="Others">Others</option>
+                </select>
+                <input type="text" id="sitin-purpose-other" placeholder="Specify your purpose..." style="display: none; margin-top: 10px; width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" />
               </div>
               <div class="form-group">
                 <label for="sitin-lab">Laboratory:</label>
@@ -810,7 +829,26 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
             <div class="form-row">
               <div class="form-group">
                 <label for="reservation-purpose">Purpose:</label>
-                <input type="text" id="reservation-purpose" placeholder="Enter purpose" required />
+                <select id="reservation-purpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box; background: white; cursor: pointer;" onchange="handleReservationPurposeChange()">
+                  <option value="" disabled selected>Select Purpose/Language</option>
+                  <option value="Java">Java</option>
+                  <option value="Python">Python</option>
+                  <option value="C++">C++</option>
+                  <option value="C#">C#</option>
+                  <option value="C">C</option>
+                  <option value="PHP">PHP</option>
+                  <option value="JavaScript">JavaScript</option>
+                  <option value="HTML/CSS">HTML/CSS</option>
+                  <option value="SQL">SQL</option>
+                  <option value="ASP.NET">ASP.NET</option>
+                  <option value="Ruby">Ruby</option>
+                  <option value="Swift">Swift</option>
+                  <option value="Kotlin">Kotlin</option>
+                  <option value="Go">Go</option>
+                  <option value="TypeScript">TypeScript</option>
+                  <option value="Others">Others</option>
+                </select>
+                <input type="text" id="reservation-purpose-other" placeholder="Specify your purpose..." style="display: none; margin-top: 10px; width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" />
               </div>
             </div>
             <button type="submit" class="btn-primary" onclick="submitReservation(event)">Reserve</button>
@@ -1365,7 +1403,16 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
       function submitSitIn(event) {
         event.preventDefault();
         
-        const purpose = document.getElementById('sitin-purpose').value;
+        let purpose = document.getElementById('sitin-purpose').value;
+        if (purpose === 'Others') {
+          const otherText = document.getElementById('sitin-purpose-other').value.trim();
+          if (!otherText) {
+            alert('Please specify your custom purpose');
+            return;
+          }
+          purpose = 'Others: ' + otherText;
+        }
+        
         const lab = document.getElementById('sitin-lab').value;
         const pcNumber = sitInSelectedPc;
 
@@ -1388,6 +1435,7 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
           alert(data.message);
           if (data.success) {
             document.getElementById('sitin-form').reset();
+            document.getElementById('sitin-purpose-other').style.display = 'none';
             sitInSelectedPc = null;
             document.getElementById('sitin-selected-pc-info').textContent = '';
             document.getElementById('sitin-select-pc-btn').textContent = 'Select a PC';
@@ -1398,6 +1446,34 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
             applyRestrictions();
           }
         });
+      }
+
+      function handleSitInPurposeChange() {
+        const select = document.getElementById('sitin-purpose');
+        const otherInput = document.getElementById('sitin-purpose-other');
+        if (select.value === 'Others') {
+          otherInput.style.display = 'block';
+          otherInput.required = true;
+          otherInput.focus();
+        } else {
+          otherInput.style.display = 'none';
+          otherInput.required = false;
+          otherInput.value = '';
+        }
+      }
+
+      function handleReservationPurposeChange() {
+        const select = document.getElementById('reservation-purpose');
+        const otherInput = document.getElementById('reservation-purpose-other');
+        if (select.value === 'Others') {
+          otherInput.style.display = 'block';
+          otherInput.required = true;
+          otherInput.focus();
+        } else {
+          otherInput.style.display = 'none';
+          otherInput.required = false;
+          otherInput.value = '';
+        }
       }
 
       // Sit-In PC Modal Functions
@@ -1506,7 +1582,15 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
         const lab = document.getElementById('reservation-lab').value;
         const date = document.getElementById('reservation-date').value;
         const startTime = document.getElementById('reservation-time').value;
-        const purpose = document.getElementById('reservation-purpose').value;
+        let purpose = document.getElementById('reservation-purpose').value;
+        if (purpose === 'Others') {
+          const otherText = document.getElementById('reservation-purpose-other').value.trim();
+          if (!otherText) {
+            alert('Please specify your custom purpose');
+            return;
+          }
+          purpose = 'Others: ' + otherText;
+        }
         const pcNumber = selectedPc;
 
         if (!lab || !date || !startTime || !purpose) {
@@ -1538,6 +1622,7 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
           alert(data.message);
           if (data.success) {
             document.getElementById('reservation-form').reset();
+            document.getElementById('reservation-purpose-other').style.display = 'none';
             selectedPc = null;
             document.getElementById('selected-pc-info').textContent = '';
             document.getElementById('select-pc-btn').textContent = 'Select a PC';

@@ -261,7 +261,26 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           <option value="Lab 4">Lab 4</option>
           <option value="Lab 5">Lab 5</option>
         </select>
-        <input type="text" id="sit-in-purpose" placeholder="Purpose" />
+        <select id="sit-in-purpose" class="auth-input" onchange="handleIndexSitInPurposeChange()">
+          <option value="" disabled selected>Select Purpose/Language</option>
+          <option value="Java">Java</option>
+          <option value="Python">Python</option>
+          <option value="C++">C++</option>
+          <option value="C#">C#</option>
+          <option value="C">C</option>
+          <option value="PHP">PHP</option>
+          <option value="JavaScript">JavaScript</option>
+          <option value="HTML/CSS">HTML/CSS</option>
+          <option value="SQL">SQL</option>
+          <option value="ASP.NET">ASP.NET</option>
+          <option value="Ruby">Ruby</option>
+          <option value="Swift">Swift</option>
+          <option value="Kotlin">Kotlin</option>
+          <option value="Go">Go</option>
+          <option value="TypeScript">TypeScript</option>
+          <option value="Others">Others</option>
+        </select>
+        <input type="text" id="sit-in-purpose-other" placeholder="Specify custom purpose..." style="display: none; margin-top: 10px; width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" />
         <button class="btn-primary" onclick="startSitIn()">Start Sit-In</button>
       </div>
     </div>
@@ -1177,10 +1196,32 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         container.innerHTML = html;
       }
 
+      function handleIndexSitInPurposeChange() {
+        const select = document.getElementById('sit-in-purpose');
+        const otherInput = document.getElementById('sit-in-purpose-other');
+        if (select.value === 'Others') {
+          otherInput.style.display = 'block';
+          otherInput.required = true;
+          otherInput.focus();
+        } else {
+          otherInput.style.display = 'none';
+          otherInput.required = false;
+          otherInput.value = '';
+        }
+      }
+
       function startSitIn() {
         const studentId = document.getElementById('sit-in-student').value;
         const lab = document.getElementById('sit-in-lab').value;
-        const purpose = document.getElementById('sit-in-purpose').value;
+        let purpose = document.getElementById('sit-in-purpose').value;
+        if (purpose === 'Others') {
+          const otherText = document.getElementById('sit-in-purpose-other').value.trim();
+          if (!otherText) {
+            alert('Please specify custom purpose');
+            return;
+          }
+          purpose = 'Others: ' + otherText;
+        }
         
         if (!studentId || !lab || !purpose) {
           alert('Please fill all fields');
@@ -1197,6 +1238,8 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           alert(data.message);
           if (data.success) {
             document.getElementById('sit-in-purpose').value = '';
+            document.getElementById('sit-in-purpose-other').style.display = 'none';
+            document.getElementById('sit-in-purpose-other').value = '';
           }
         });
       }
