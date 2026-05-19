@@ -552,6 +552,83 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             color: #ffffff !important;
             font-weight: 700;
         }
+
+        /* Premium Custom Checkbox styling */
+        .student-select-checkbox,
+        #selectAllCheckbox {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            background: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        .student-select-checkbox:hover,
+        #selectAllCheckbox:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .student-select-checkbox:checked,
+        #selectAllCheckbox:checked {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.25);
+        }
+
+        .student-select-checkbox:checked::before,
+        #selectAllCheckbox:checked::before {
+            content: "";
+            width: 4px;
+            height: 8px;
+            border: solid #ffffff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+            position: absolute;
+            top: 2px;
+            left: 5px;
+        }
+
+        /* Premium Danger / Bulk Delete Button */
+        #deleteSelectedBtn {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 18px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2), 0 2px 4px -1px rgba(239, 68, 68, 0.1);
+            transition: all 0.2s ease;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+
+        #deleteSelectedBtn:hover {
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px -2px rgba(239, 68, 68, 0.3), 0 3px 6px -2px rgba(239, 68, 68, 0.2);
+        }
+
+        #deleteSelectedBtn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px -1px rgba(239, 68, 68, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -584,6 +661,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             <div class="toolbar-left">
                 <button type="button" class="btn-primary" onclick="openAddModal()">+ Add Student</button>
                 <button type="button" class="btn-secondary" onclick="resetAllSessions()">Reset All Sessions</button>
+                <button type="button" id="deleteSelectedBtn" onclick="deleteSelectedStudents()" style="display: none;">Delete Selected (0)</button>
             </div>
             <div class="toolbar-right">
                 <select name="ccs" class="filter-dropdown" onchange="this.form.submit()">
@@ -602,6 +680,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
         <table class="data-table" id="studentsTable">
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)"></th>
                     <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=id_number&dir=<?php echo ($sortColumn === 'id_number') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">ID Number <?php echo ($sortColumn === 'id_number') ? $sortDirectionIcon : ''; ?></a></th>
                     <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=firstname&dir=<?php echo ($sortColumn === 'firstname') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Name <?php echo ($sortColumn === 'firstname' || $sortColumn === 'lastname') ? $sortDirectionIcon : ''; ?></a></th>
                     <th><a href="?page=1&search=<?php echo urlencode($search); ?>&ccs=<?php echo $ccsFilter; ?>&sort=level&dir=<?php echo ($sortColumn === 'level') ? $oppositeDir : 'asc'; ?>" style="color:white;text-decoration:none;">Year Level <?php echo ($sortColumn === 'level') ? $sortDirectionIcon : ''; ?></a></th>
@@ -613,6 +692,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             <tbody>
                 <?php foreach ($students as $student): ?>
                 <tr>
+                    <td style="text-align: center;"><input type="checkbox" class="student-select-checkbox" value="<?php echo $student['id']; ?>" onclick="updateSelectButtons()"></td>
                     <td><?php echo htmlspecialchars($student['id_number']); ?></td>
                     <td><?php echo htmlspecialchars($student['firstname'] . ' ' . $student['lastname']); ?></td>
                     <td><?php echo htmlspecialchars($student['level']); ?></td>
@@ -875,6 +955,65 @@ formData.append('address', address);
                 }
             } catch (error) {
                 alert('Error deleting student');
+            }
+        }
+
+        function toggleSelectAll(master) {
+            const checkboxes = document.querySelectorAll('.student-select-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = master.checked;
+            });
+            updateSelectButtons();
+        }
+
+        function updateSelectButtons() {
+            const checkboxes = document.querySelectorAll('.student-select-checkbox');
+            const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            const selectAllCb = document.getElementById('selectAllCheckbox');
+            
+            if (checkboxes.length > 0) {
+                selectAllCb.checked = selectedCount === checkboxes.length;
+            }
+            
+            if (selectedCount > 0) {
+                deleteBtn.style.display = 'inline-block';
+                deleteBtn.textContent = 'Delete Selected (' + selectedCount + ')';
+            } else {
+                deleteBtn.style.display = 'none';
+            }
+        }
+
+        async function deleteSelectedStudents() {
+            const checkboxes = document.querySelectorAll('.student-select-checkbox');
+            const selectedIds = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) return;
+            
+            if (!confirm('Are you sure you want to delete ' + selectedIds.length + ' selected student(s)? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                var formData = new FormData();
+                formData.append('ids', selectedIds.join(','));
+                
+                var response = await fetch('api_delete_student.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+                
+                if (data.success) {
+                    alert('Selected student(s) deleted successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error deleting selected student(s)');
             }
         }
     </script>

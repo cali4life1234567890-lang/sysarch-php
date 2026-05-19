@@ -70,6 +70,9 @@ switch ($action) {
     case 'get_lab_pc_status':
         getLabPcStatus();
         break;
+    case 'get_pc_slots_status':
+        getPcSlotsStatus();
+        break;
     case 'reserve_pc':
         reservePc();
         break;
@@ -620,6 +623,13 @@ function makeReservation() {
          return;
      }
 
+     // Prevent reserving on previous days
+     $todayDate = date('Y-m-d');
+     if ($date < $todayDate) {
+          echo json_encode(['success' => false, 'message' => 'You cannot make reservations for previous days']);
+          return;
+     }
+
      // Check if user is allowed to make reservations
      $stmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
      $stmt->execute([$_SESSION['user_id']]);
@@ -677,12 +687,12 @@ function cancelReservation() {
     
     try {
         // Get reservation details first
-        $stmt = $pdo->prepare("SELECT lab_number, pc_number FROM reservations WHERE id = ? AND user_id = ? AND status = 'pending'");
+        $stmt = $pdo->prepare("SELECT lab_number, pc_number FROM reservations WHERE id = ? AND user_id = ? AND LOWER(status) = 'pending'");
         $stmt->execute([$reservationId, $_SESSION['user_id']]);
         $reservation = $stmt->fetch();
         
         // Delete the reservation
-        $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ? AND user_id = ? AND status = 'pending'");
+        $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ? AND user_id = ? AND LOWER(status) = 'pending'");
         $stmt->execute([$reservationId, $_SESSION['user_id']]);
         
         if ($stmt->rowCount() > 0) {
@@ -861,6 +871,98 @@ function getLabPcStatus() {
     }
 }
 
+function getPcSlotsStatus() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    $pcNumber = intval($_GET['pc_number'] ?? 0);
+    $date = $_GET['date'] ?? '';
+    
+    if (empty($lab) || empty($pcNumber) || empty($date)) {
+        echo json_encode(['success' => false, 'message' => 'Lab, PC Number, and Date are required']);
+        return;
+    }
+    
+    $slots = [
+        ['start' => '08:00', 'end' => '09:30', 'display' => '08:00 AM - 09:30 AM'],
+        ['start' => '09:30', 'end' => '11:00', 'display' => '09:30 AM - 11:00 AM'],
+        ['start' => '11:00', 'end' => '12:30', 'display' => '11:00 AM - 12:30 PM'],
+        ['start' => '12:30', 'end' => '14:00', 'display' => '12:30 PM - 02:00 PM'],
+        ['start' => '14:00', 'end' => '15:30', 'display' => '02:00 PM - 03:30 PM'],
+        ['start' => '15:30', 'end' => '17:00', 'display' => '03:30 PM - 05:00 PM'],
+        ['start' => '17:00', 'end' => '18:00', 'display' => '05:00 PM - 06:00 PM']
+    ];
+    
+    try {
+        $resStmt = $pdo->prepare("
+            SELECT start_time, end_time, status 
+            FROM reservations 
+            WHERE lab_number = ? AND pc_number = ? AND reservation_date = ? AND status IN ('pending', 'active')
+        ");
+        $resStmt->execute([$lab, $pcNumber, $date]);
+        $reservations = $resStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $sitinStmt = $pdo->prepare("
+            SELECT time_in, time_out 
+            FROM sitin_records 
+            WHERE lab_number = ? AND pc_number = ? AND date(time_in) = ?
+        ");
+        $sitinStmt->execute([$lab, $pcNumber, $date]);
+        $sitins = $sitinStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $slotStatuses = [];
+        
+        foreach ($slots as $slot) {
+            $slotStart = $slot['start'];
+            $slotEnd = $slot['end'];
+            $status = 'available';
+            
+            foreach ($reservations as $res) {
+                $resStart = substr($res['start_time'], 0, 5);
+                $resEnd = substr($res['end_time'], 0, 5);
+                
+                if ($resStart < $slotEnd && $resEnd > $slotStart) {
+                    $status = 'reserved';
+                    break;
+                }
+            }
+            
+            if ($status === 'available') {
+                foreach ($sitins as $sitin) {
+                    $inTime = date('H:i', strtotime($sitin['time_in']));
+                    $outTime = $sitin['time_out'] ? date('H:i', strtotime($sitin['time_out'])) : null;
+                    
+                    if ($outTime === null) {
+                        $outTime = '18:00';
+                    }
+                    
+                    if ($inTime < $slotEnd && $outTime > $slotStart) {
+                        $status = 'occupied';
+                        break;
+                    }
+                }
+            }
+            
+            $slotStatuses[] = [
+                'start' => $slotStart,
+                'end' => $slotEnd,
+                'display' => $slot['display'],
+                'status' => $status
+            ];
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'lab' => $lab,
+            'pc_number' => $pcNumber,
+            'date' => $date,
+            'slots' => $slotStatuses
+        ]);
+        
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
 function syncPcStatusForLab($lab) {
     global $pdo;
     
@@ -942,6 +1044,13 @@ if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empt
          return;
      }
 
+      // Prevent reserving on previous days
+      $todayDate = date('Y-m-d');
+      if ($date < $todayDate) {
+          echo json_encode(['success' => false, 'message' => 'You cannot make reservations for previous days']);
+          return;
+      }
+
      // Check if user is allowed to make reservations
      $stmt = $pdo->prepare("SELECT can_reserve FROM users WHERE id = ?");
      $stmt->execute([$_SESSION['user_id']]);
@@ -951,13 +1060,23 @@ if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empt
          return;
      }
 
-     // Check if PC is available
-     $checkStmt = $pdo->prepare("SELECT status FROM lab_pc_status WHERE lab_number = ? AND pc_number = ?");
+     // Check if PC exists in this laboratory
+     $checkStmt = $pdo->prepare("SELECT 1 FROM lab_pc_status WHERE lab_number = ? AND pc_number = ?");
      $checkStmt->execute([$lab, $pcNumber]);
-     $pcStatus = $checkStmt->fetch();
+     if (!$checkStmt->fetch()) {
+         echo json_encode(['success' => false, 'message' => 'Selected PC does not exist in this laboratory']);
+         return;
+     }
 
-     if (!$pcStatus || $pcStatus['status'] !== 'available') {
-         echo json_encode(['success' => false, 'message' => 'Selected PC is not available']);
+     // Check for conflicting/overlapping reservations on the same PC for the same date and time block
+     $conflictStmt = $pdo->prepare("
+         SELECT id FROM reservations 
+         WHERE lab_number = ? AND pc_number = ? AND reservation_date = ? AND status IN ('pending', 'active') 
+         AND (start_time < ? AND ? < end_time)
+     ");
+     $conflictStmt->execute([$lab, $pcNumber, $date, $endTime, $startTime]);
+     if ($conflictStmt->fetch()) {
+         echo json_encode(['success' => false, 'message' => 'Selected PC is already reserved for this time block']);
          return;
      }
     
@@ -992,9 +1111,8 @@ if (empty($lab) || empty($pcNumber) || empty($date) || empty($startTime) || empt
         ");
         $stmt->execute([$_SESSION['user_id'], $lab, $pcNumber, $date, $startTime, $endTime, $purpose]);
         
-        // Update PC status to reserved
-        $updateStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'reserved' WHERE lab_number = ? AND pc_number = ?");
-        $updateStmt->execute([$lab, $pcNumber]);
+        // Synchronize laboratory PC status dynamically
+        syncPcStatusForLab($lab);
         
         echo json_encode(['success' => true, 'message' => 'Reservation submitted successfully']);
     } catch (PDOException $e) {

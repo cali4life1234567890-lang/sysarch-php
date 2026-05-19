@@ -52,6 +52,9 @@ switch ($action) {
     case 'deny_reservation':
         denyReservation();
         break;
+    case 'end_reservation_session':
+        endReservationSession();
+        break;
     case 'report':
         generateReport();
         break;
@@ -574,6 +577,64 @@ function denyReservation() {
         
         echo json_encode(['success' => true, 'message' => 'Reservation denied']);
     } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function endReservationSession() {
+    global $pdo;
+    $reservationId = $_GET['id'] ?? '';
+    
+    if (empty($reservationId)) {
+        echo json_encode(['success' => false, 'message' => 'Reservation ID is required']);
+        return;
+    }
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Find active sit-in record associated with this reservation (time_out IS NULL)
+        $stmt = $pdo->prepare("SELECT id, lab_number, pc_number, user_id FROM sitin_records WHERE reservation_id = ? AND time_out IS NULL");
+        $stmt->execute([$reservationId]);
+        $record = $stmt->fetch();
+        
+        // Update reservation status to completed
+        $stmt = $pdo->prepare("UPDATE reservations SET status = 'completed' WHERE id = ?");
+        $stmt->execute([$reservationId]);
+        
+        if ($record) {
+            // Update sit-in record to end it
+            $stmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ?");
+            $stmt->execute([$record['id']]);
+            
+            // Release PC if it was assigned
+            if ($record['pc_number']) {
+                $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                $stmt->execute([$record['lab_number'], $record['pc_number']]);
+            }
+            
+            // Send notification to user that the session has ended
+            createUserNotification($record['user_id'], 'Sit-In Session Ended', 'Your active sit-in session for Lab ' . $record['lab_number'] . ' PC ' . $record['pc_number'] . ' has been ended by the administrator.', 'info');
+        } else {
+            // If no active sit-in is found but reservation is active, release PC associated with the reservation if any
+            $resStmt = $pdo->prepare("SELECT lab_number, pc_number, user_id FROM reservations WHERE id = ?");
+            $resStmt->execute([$reservationId]);
+            $resDetails = $resStmt->fetch();
+            if ($resDetails) {
+                if ($resDetails['pc_number']) {
+                    $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                    $stmt->execute([$resDetails['lab_number'], $resDetails['pc_number']]);
+                }
+                createUserNotification($resDetails['user_id'], 'Reservation Session Ended', 'Your active reservation has been ended by the administrator.', 'info');
+            }
+        }
+        
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Session ended successfully']);
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }

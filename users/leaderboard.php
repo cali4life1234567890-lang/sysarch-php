@@ -113,6 +113,16 @@ $userRankJson = json_encode($userRank);
     <link rel="icon" href="../imgs/ccslogo.png" type="image/png" />
     <link rel="stylesheet" href="../style.css" />
     <script src="../script.js"></script>
+    <script>
+      // Universal Mobile Menu Toggle
+      function toggleMobileMenu(btn) {
+        btn.classList.toggle('active');
+        const navLinks = btn.closest('.navbar').querySelector('.nav-links');
+        if (navLinks) {
+          navLinks.classList.toggle('active');
+        }
+      }
+    </script>
     <style>
       .leaderboard-page {
         padding: 20px;
@@ -248,6 +258,11 @@ $userRankJson = json_encode($userRank);
           </h1>
         </a>
       </div>
+      <button class="menu-toggle" onclick="toggleMobileMenu(this)" aria-label="Toggle Navigation Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links user-links">
         <div class="nav-notification-dropdown">
           <a href="#" class="nav-notification-link" onclick="toggleNavNotificationDropdown(event)">
@@ -296,21 +311,23 @@ $userRankJson = json_encode($userRank);
       </div>
 
       <!-- Leaderboard Table -->
-      <table class="leaderboard-table">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Student</th>
-            <th>Course</th>
-            <th>Hours</th>
-            <th>Sessions</th>
-            <th>Total Score</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboard-body">
-          <!-- Leaderboard data will be loaded here -->
-        </tbody>
-      </table>
+      <div class="table-responsive-wrapper">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Student</th>
+              <th>Course</th>
+              <th>Hours</th>
+              <th>Sessions</th>
+              <th>Total Score</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <!-- Leaderboard data will be loaded here -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <script>

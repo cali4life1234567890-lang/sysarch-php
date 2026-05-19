@@ -117,13 +117,22 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>University of Cebu - Home</title>
     <link rel="icon" href="imgs/ccslogo.png" type="image/png" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>" />
     <script src="script.js"></script>
     <script>
       // Initialize current user from PHP session
       const phpUser = <?php echo $userJson; ?>;
       if (phpUser) {
         currentUser = phpUser;
+      }
+
+      // Universal Mobile Menu Toggle
+      function toggleMobileMenu(btn) {
+        btn.classList.toggle('active');
+        const navLinks = btn.closest('.navbar').querySelector('.nav-links');
+        if (navLinks) {
+          navLinks.classList.toggle('active');
+        }
       }
     </script>
   </head>
@@ -139,6 +148,11 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           </h1>
         </a>
       </div>
+      <button class="menu-toggle" onclick="toggleMobileMenu(this)" aria-label="Toggle Navigation Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links admin-links">
         <a href="#" onclick="showSection('admin-home')" class="active">Home</a>
         <a href="#" onclick="showSection('admin-search')">Search</a>
@@ -297,21 +311,23 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         </select>
         <button class="btn-primary" onclick="loadRecords()">Filter</button>
       </div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>ID Number</th>
-            <th>Name</th>
-            <th>Lab</th>
-            <th>Time In</th>
-            <th>Time Out</th>
-            <th>Purpose</th>
-          </tr>
-        </thead>
-        <tbody id="records-table-body">
-          <!-- Records will be loaded here -->
-        </tbody>
-      </table>
+      <div class="table-responsive-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID Number</th>
+              <th>Name</th>
+              <th>Lab</th>
+              <th>Time In</th>
+              <th>Time Out</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody id="records-table-body">
+            <!-- Records will be loaded here -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div id="admin-reports" class="content-section admin-section" style="display: none">
@@ -392,6 +408,11 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           </h1>
         </a>
       </div>
+      <button class="menu-toggle" onclick="toggleMobileMenu(this)" aria-label="Toggle Navigation Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links user-links">
         <?php if ($currentUser): ?>
           <div class="nav-notification-dropdown">
@@ -572,9 +593,14 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
     <div id="user-home" class="content-section user-section premium-dashboard">
       <!-- Welcome Dashboard Header -->
       <div class="dashboard-header-premium">
-        <div class="welcome-banner-text">
-          <h1>Welcome back, <span class="student-name-highlight"><?php echo htmlspecialchars($currentUser['firstname']); ?></span>! 👋</h1>
-          <p class="dashboard-subtitle">Monitor your sit-in history, software availability, and make PC reservations in real time.</p>
+        <div class="welcome-banner-left">
+          <div class="welcome-avatar-wrapper">
+            <img class="student-photo dashboard-welcome-avatar" src="imgs/emp-prof.png" alt="Profile Picture" />
+          </div>
+          <div class="welcome-banner-text">
+            <h1>Welcome back, <span class="student-name-highlight"><?php echo htmlspecialchars($currentUser['firstname']); ?></span>! 👋</h1>
+            <p class="dashboard-subtitle">Monitor your sit-in history, software availability, and make PC reservations in real time.</p>
+          </div>
         </div>
         
         <!-- Reservation Enable Toggle Switch -->
@@ -655,9 +681,18 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
               <p class="status-loading">Checking your active session...</p>
             </div>
             
-            <div class="dashboard-quick-links">
-              <a href="users/user_reservation.php" class="btn-dashboard-reserve">
-                <span>📅 Go to Reservations System</span>
+            <div class="dashboard-quick-links-grid">
+              <a href="users/user_reservation.php?tab=instant" class="btn-dashboard-action btn-instant-sit">
+                <span class="action-icon">🖥️</span>
+                <span class="action-text">Instant Sit-In</span>
+              </a>
+              <a href="users/user_reservation.php?tab=reserve" class="btn-dashboard-action btn-make-reserve">
+                <span class="action-icon">📅</span>
+                <span class="action-text">Make Reservation</span>
+              </a>
+              <a href="users/user_reservation.php?tab=log" class="btn-dashboard-action btn-res-history">
+                <span class="action-icon">🕒</span>
+                <span class="action-text">Reservation History</span>
               </a>
             </div>
           </div>
@@ -1513,7 +1548,7 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           const statusClass = pc.status === 'available' ? 'pc-available' : (pc.status === 'occupied' ? 'pc-occupied' : 'pc-reserved');
           const statusText = pc.status.charAt(0).toUpperCase() + pc.status.slice(1);
           
-          html += `<div class="dashboard-pc-card ${statusClass}">
+          html += `<div class="dashboard-pc-card ${statusClass}" onclick="openSlotsModal('${pc.pc_number}')" style="cursor: pointer;">
             <span class="pc-num">${pc.pc_number}</span>
             <span class="pc-status">${statusText}</span>
           </div>`;
@@ -2029,7 +2064,7 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         
         let html = '';
         reservations.forEach(res => {
-          const canCancel = res.status === 'pending';
+          const canCancel = res.status && res.status.toLowerCase() === 'pending';
           html += `<tr>
             <td>${res.lab_number}</td>
             <td>${res.pc_number || 'N/A'}</td>
@@ -2301,6 +2336,101 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
           originalShowSection(sectionId);
         }
       };
+
+      // PC Availability Slots Modal Functions
+      function openSlotsModal(pcNumber) {
+        const lab = activeSoftwareLab;
+        const today = new Date().toISOString().split('T')[0];
+        const modal = document.getElementById('pc-slots-modal');
+        const container = document.getElementById('modal-slots-container');
+        const title = document.getElementById('slots-modal-title');
+        const subtitle = document.getElementById('slots-modal-subtitle');
+        
+        if (!modal || !container || !title || !subtitle) return;
+        
+        title.textContent = `PC ${pcNumber} Availability`;
+        subtitle.textContent = `Lab ${lab} — Daily Schedule`;
+        
+        container.innerHTML = '<p class="modal-loading">Loading daily schedule...</p>';
+        modal.style.display = 'flex';
+        
+        fetch(`users/user_dashboard.php?action=get_pc_slots_status&lab=${lab}&pc_number=${pcNumber}&date=${today}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              renderModalSlots(data.slots, pcNumber, lab);
+            } else {
+              container.innerHTML = `<p class="modal-error">Error: ${data.message || 'Failed to fetch status'}</p>`;
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            container.innerHTML = '<p class="modal-error">Failed to load daily schedule.</p>';
+          });
+      }
+
+      function renderModalSlots(slots, pcNumber, lab) {
+        const container = document.getElementById('modal-slots-container');
+        container.innerHTML = '';
+        
+        slots.forEach(slot => {
+          const row = document.createElement('div');
+          row.className = `modal-slot-row ${slot.status}`;
+          
+          let displayStatus = slot.status.charAt(0).toUpperCase() + slot.status.slice(1);
+          let actionHtml = '';
+          
+          if (slot.status === 'available') {
+            const redirectUrl = `users/user_reservation.php?tab=reserve&lab=${lab}&pc=${pcNumber}&slot=${slot.start}-${slot.end}`;
+            actionHtml = `<a href="${redirectUrl}" class="btn-modal-book">Book Slot</a>`;
+          } else {
+            actionHtml = `<span class="badge-modal-unavailable">${displayStatus}</span>`;
+          }
+          
+          row.innerHTML = `
+            <div class="modal-slot-time-col">
+              <span class="slot-clock">🕒</span>
+              <span class="slot-time-text">${slot.display}</span>
+            </div>
+            <div class="modal-slot-action-col">
+              ${actionHtml}
+            </div>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      function closeSlotsModal() {
+        const modal = document.getElementById('pc-slots-modal');
+        if (modal) {
+          modal.style.display = 'none';
+        }
+      }
+
+      function handleSlotsModalOutsideClick(event) {
+        const modal = document.getElementById('pc-slots-modal');
+        if (event.target === modal) {
+          closeSlotsModal();
+        }
+      }
     </script>
+
+    <!-- Premium PC Slots Schedule Modal -->
+    <div id="pc-slots-modal" class="premium-modal-overlay" onclick="handleSlotsModalOutsideClick(event)" style="display: none;">
+      <div class="premium-modal-card">
+        <div class="modal-header-premium">
+          <div>
+            <h2 class="modal-title-premium" id="slots-modal-title">PC 01 Schedule</h2>
+            <p class="modal-subtitle-premium" id="slots-modal-subtitle">Lab 542 — Daily Slot Availability</p>
+          </div>
+          <button class="modal-close-btn" onclick="closeSlotsModal()">&times;</button>
+        </div>
+        <div class="modal-body-premium">
+          <div id="modal-slots-container" class="modal-slots-grid">
+            <!-- Dynamically populated slot rows -->
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

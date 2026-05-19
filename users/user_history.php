@@ -67,6 +67,15 @@ $userJson = json_encode($currentUser);
       if (phpUser) {
         currentUser = phpUser;
       }
+
+      // Universal Mobile Menu Toggle
+      function toggleMobileMenu(btn) {
+        btn.classList.toggle('active');
+        const navLinks = btn.closest('.navbar').querySelector('.nav-links');
+        if (navLinks) {
+          navLinks.classList.toggle('active');
+        }
+      }
     </script>
     <style>
       .history-page {
@@ -88,6 +97,9 @@ $userJson = json_encode($currentUser);
       .back-link:hover {
         text-decoration: underline;
       }
+      .data-table td {
+        color: black !important;
+      }
     </style>
   </head>
   <body>
@@ -101,6 +113,11 @@ $userJson = json_encode($currentUser);
           </h1>
         </a>
       </div>
+      <button class="menu-toggle" onclick="toggleMobileMenu(this)" aria-label="Toggle Navigation Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div class="nav-links user-links">
         <div class="nav-notification-dropdown">
           <a href="#" class="nav-notification-link" onclick="toggleNavNotificationDropdown(event)">
@@ -128,23 +145,25 @@ $userJson = json_encode($currentUser);
         <h1>My Sit-In History</h1>
 </div>
       
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th onclick="sortHistory('id_number')">ID Number ↕</th>
-            <th onclick="sortHistory('name')">Name ↕</th>
-            <th>Purpose</th>
-            <th>Lab</th>
-            <th>Login (Time In)</th>
-            <th>Logout (Time Out)</th>
-            <th onclick="sortHistory('date')">Date ↕</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="history-table-body">
-          <!-- History will be loaded here -->
-        </tbody>
-      </table>
+      <div class="table-responsive-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th onclick="sortHistory('id_number')">ID Number ↕</th>
+              <th onclick="sortHistory('name')">Name ↕</th>
+              <th>Purpose</th>
+              <th>Lab</th>
+              <th>Login (Time In)</th>
+              <th>Logout (Time Out)</th>
+              <th onclick="sortHistory('date')">Date ↕</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            <!-- History will be loaded here -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Feedback Modal -->

@@ -141,13 +141,18 @@ $adminName = $_SESSION['name'] ?? 'Admin';
                         <button class="btn-small" style="background: var(--success-color); color: white;" onclick="approveReservation(${res.id})">Approve</button>
                         <button class="btn-small btn-danger" onclick="denyReservation(${res.id})">Deny</button>
                     </div>`;
+                } else if (res.status === 'active' || res.status === 'approved') {
+                    actions = `<div class="reservation-actions">
+                        <button class="btn-small btn-danger" onclick="endReservationSession(${res.id})">End Session</button>
+                    </div>`;
                 } else {
                     actions = `<span style="color: #999; font-size: 13px;">No actions available</span>`;
                 }
                 
                 let badgeClass = 'status-badge status-pending';
-                if (res.status === 'approved') badgeClass = 'status-badge status-active';
+                if (res.status === 'approved' || res.status === 'active') badgeClass = 'status-badge status-active';
                 if (res.status === 'denied') badgeClass = 'status-badge status-denied';
+                if (res.status === 'completed') badgeClass = 'status-badge status-completed';
                 
                 html += `<tr>
                     <td><strong>#${res.id}</strong></td>
@@ -186,6 +191,21 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             }
             
             fetch('admin_dashboard.php?action=deny_reservation&id=' + id)
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        loadReservations();
+                    }
+                });
+        }
+
+        function endReservationSession(id) {
+            if (!confirm('End this active student session? This will complete the reservation, end the active sit-in, and release the PC.')) {
+                return;
+            }
+            
+            fetch('admin_dashboard.php?action=end_reservation_session&id=' + id)
                 .then(res => res.json())
                 .then(data => {
                     alert(data.message);
