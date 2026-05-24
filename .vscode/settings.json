@@ -1,0 +1,19 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
+                "enableSsl": "Disabled"
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "153.92.15.31",
+            "port": 3306,
+            "driver": "MySQL",
+            "username": "u875409848_2026_1",
+            "database": "u875409848_2026_1",
+            "name": "intprog",
+            "askForPassword": true
+        }
+    ]
+}

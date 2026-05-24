@@ -336,19 +336,55 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         <div class="report-card">
           <h3>Daily Report</h3>
           <input type="date" id="report-date" />
-          <button class="btn-primary" onclick="generateDailyReport()">Generate</button>
+          <button class="btn-primary" onclick="generateDailyCSV()">Download CSV</button>
+          <button class="btn-primary" onclick="generateDailyPDF()">Download PDF</button>
         </div>
         <div class="report-card">
           <h3>Weekly Report</h3>
           <input type="week" id="report-week" />
-          <button class="btn-primary" onclick="generateWeeklyReport()">Generate</button>
+          <button class="btn-primary" onclick="generateWeeklyCSV()">Download CSV</button>
+          <button class="btn-primary" onclick="generateWeeklyPDF()">Download PDF</button>
         </div>
         <div class="report-card">
           <h3>Monthly Report</h3>
           <input type="month" id="report-month" />
-          <button class="btn-primary" onclick="generateMonthlyReport()">Generate</button>
+          <button class="btn-primary" onclick="generateMonthlyCSV()">Download CSV</button>
+          <button class="btn-primary" onclick="generateMonthlyPDF()">Download PDF</button>
         </div>
       </div>
+
+      <script>
+        function generateDailyCSV() {
+          const date = document.getElementById('report-date').value;
+          if (!date) return alert('Please select a date');
+          window.open(`admin_dashboard.php?action=report&type=daily&date=${date}`, '_blank');
+        }
+        function generateWeeklyCSV() {
+          const week = document.getElementById('report-week').value;
+          if (!week) return alert('Please select a week');
+          window.open(`admin_dashboard.php?action=report&type=weekly&week=${week}`, '_blank');
+        }
+        function generateMonthlyCSV() {
+          const month = document.getElementById('report-month').value;
+          if (!month) return alert('Please select a month');
+          window.open(`admin_dashboard.php?action=report&type=monthly&month=${month}`, '_blank');
+        }
+        function generateDailyPDF() {
+          const date = document.getElementById('report-date').value;
+          if (!date) return alert('Please select a date');
+          window.open(`admin/generate_pdf_report.php?type=daily&date=${date}`, '_blank');
+        }
+        function generateWeeklyPDF() {
+          const week = document.getElementById('report-week').value;
+          if (!week) return alert('Please select a week');
+          window.open(`admin/generate_pdf_report.php?type=weekly&week=${week}`, '_blank');
+        }
+        function generateMonthlyPDF() {
+          const month = document.getElementById('report-month').value;
+          if (!month) return alert('Please select a month');
+          window.open(`admin/generate_pdf_report.php?type=monthly&month=${month}`, '_blank');
+        }
+      </script>
     </div>
 
     <div id="admin-feedback" class="content-section admin-section" style="display: none">
@@ -1314,17 +1350,20 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
 
       function generateDailyReport() {
         const date = document.getElementById('report-date').value;
-        window.open(`admin_dashboard.php?action=report&type=daily&date=${date}`, '_blank');
+        if(!date) return alert('Please select a date');
+        window.open(`admin/generate_pdf_report.php?type=daily&date=${date}`, '_blank');
       }
 
       function generateWeeklyReport() {
         const week = document.getElementById('report-week').value;
-        window.open(`admin_dashboard.php?action=report&type=weekly&week=${week}`, '_blank');
+        if(!week) return alert('Please select a week');
+        window.open(`admin/generate_pdf_report.php?type=weekly&week=${week}`, '_blank');
       }
 
       function generateMonthlyReport() {
         const month = document.getElementById('report-month').value;
-        window.open(`admin_dashboard.php?action=report&type=monthly&month=${month}`, '_blank');
+        if(!month) return alert('Please select a month');
+        window.open(`admin/generate_pdf_report.php?type=monthly&month=${month}`, '_blank');
       }
 
       // ============================================
@@ -1545,13 +1584,20 @@ $commLeaderboardJson = json_encode($commLeaderboardData);
         
         let html = '<div class="dashboard-pc-grid">';
         pcs.forEach(pc => {
-          const statusClass = pc.status === 'available' ? 'pc-available' : (pc.status === 'occupied' ? 'pc-occupied' : 'pc-reserved');
-          const statusText = pc.status.charAt(0).toUpperCase() + pc.status.slice(1);
-          
-          html += `<div class="dashboard-pc-card ${statusClass}" onclick="openSlotsModal('${pc.pc_number}')" style="cursor: pointer;">
-            <span class="pc-num">${pc.pc_number}</span>
-            <span class="pc-status">${statusText}</span>
-          </div>`;
+          if (pc.status === 'maintenance') {
+            html += `<div class="dashboard-pc-card pc-maintenance" style="cursor: not-allowed; opacity: 0.4; filter: grayscale(100%);" title="PC Disabled / Maintenance">
+              <span class="pc-num" style="color: #64748b;">${pc.pc_number}</span>
+              <span class="pc-status" style="color: #64748b; background: #e2e8f0;">Disabled</span>
+            </div>`;
+          } else {
+            const statusClass = pc.status === 'available' ? 'pc-available' : (pc.status === 'occupied' ? 'pc-occupied' : 'pc-reserved');
+            const statusText = pc.status.charAt(0).toUpperCase() + pc.status.slice(1);
+            
+            html += `<div class="dashboard-pc-card ${statusClass}" onclick="openSlotsModal('${pc.pc_number}')" style="cursor: pointer;">
+              <span class="pc-num">${pc.pc_number}</span>
+              <span class="pc-status">${statusText}</span>
+            </div>`;
+          }
         });
         html += '</div>';
         

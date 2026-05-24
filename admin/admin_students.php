@@ -646,6 +646,7 @@ $adminName = $_SESSION['name'] ?? 'Admin';
             <a href="admin_students.php" class="active">Students</a>
             <a href="admin_sitin.php">Sit-In</a>
             <a href="admin_software.php">Software Manager</a>
+            <a href="admin_pcs.php">PC Management</a>
             <a href="admin_records.php">View Sit-In Records</a>
             <a href="admin_reports.php">Sit-In Reports</a>
             <a href="admin_feedback.php">Feedback</a>

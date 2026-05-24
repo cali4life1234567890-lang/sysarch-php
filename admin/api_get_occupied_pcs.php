@@ -31,10 +31,19 @@ try {
         // Ignore if exists
     }
 
-    // Query active check-ins with pc numbers
+    // Query active check-ins with pc numbers, optionally filter by timeslot
+$timeSlot = $_GET['time_slot'] ?? '';
+if ($timeSlot) {
+    $parts = explode('-', $timeSlot);
+    $slotStart = trim($parts[0] ?? '');
+    $slotEnd = trim($parts[1] ?? '');
+    $stmt = $pdo->prepare("SELECT pc_number FROM sitin_records WHERE lab_number = ? AND time_out IS NULL AND pc_number IS NOT NULL AND ((start_time IS NULL AND end_time IS NULL) OR (start_time <= ? AND end_time >= ?))");
+    $stmt->execute([$lab, $slotEnd, $slotStart]);
+} else {
     $stmt = $pdo->prepare("SELECT pc_number FROM sitin_records WHERE lab_number = ? AND time_out IS NULL AND pc_number IS NOT NULL");
     $stmt->execute([$lab]);
-    $occupied = $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+$occupied = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     echo json_encode([
         'success' => true,

@@ -21,10 +21,22 @@ $id_number = $_POST['id_number'] ?? '';
 $purpose = $_POST['purpose'] ?? '';
 $lab = $_POST['lab'] ?? '';
 $pc_number = $_POST['pc_number'] ?? null;
+$time_slot = $_POST['time_slot'] ?? '';
 
 if (!$id_number || !$purpose || !$lab) {
     echo json_encode(['success' => false, 'message' => 'Missing required fields']);
     exit;
+}
+
+// Parse time slot into start_time and end_time (format "HH:MM-HH:MM")
+$start_time = null;
+$end_time = null;
+if ($time_slot) {
+    $parts = explode('-', $time_slot);
+    if (count($parts) == 2) {
+        $start_time = trim($parts[0]);
+        $end_time = trim($parts[1]);
+    }
 }
 
 try {
@@ -69,8 +81,8 @@ try {
     }
     
     // Insert sit-in record
-    $stmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, time_in) VALUES (?, ?, ?, ?, datetime('now'))");
-    $stmt->execute([$userId, $lab, $pc_number, $purpose]);
+    $stmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, time_in, start_time, end_time) VALUES (?, ?, ?, ?, datetime('now'), ?, ?)");
+    $stmt->execute([$userId, $lab, $pc_number, $purpose, $start_time, $end_time]);
     
     // Decrement remaining sessions
     $newSessions = $remainingSessions - 1;

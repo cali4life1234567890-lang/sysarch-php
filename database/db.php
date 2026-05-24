@@ -49,6 +49,8 @@ try {
             time_in DATETIME DEFAULT CURRENT_TIMESTAMP,
             time_out DATETIME,
             purpose TEXT,
+            start_time TEXT,
+            end_time TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ");
@@ -56,6 +58,20 @@ try {
     // Add pc_number column if it doesn't exist (for existing tables)
     try {
         $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+
+    // Add start_time column if it doesn't exist
+    try {
+        $pdo->exec("ALTER TABLE sitin_records ADD COLUMN start_time TEXT");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore
+    }
+
+    // Add end_time column if it doesn't exist
+    try {
+        $pdo->exec("ALTER TABLE sitin_records ADD COLUMN end_time TEXT");
     } catch (PDOException $e) {
         // Column might already exist, ignore
     }

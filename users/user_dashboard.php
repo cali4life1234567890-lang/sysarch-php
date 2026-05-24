@@ -310,17 +310,6 @@ function checkAndStartApprovedReservations() {
         $approvedReservations = $stmt->fetchAll();
         
         if (empty($approvedReservations)) {
-            // Also check for pending reservations that have reached their time
-            $stmt = $pdo->prepare("
-                SELECT id, user_id, lab_number, pc_number, reservation_date, start_time, end_time, purpose
-                FROM reservations
-                WHERE user_id = ? AND status = 'pending' AND date(reservation_date) = date('now') AND time(start_time) <= time('now')
-            ");
-            $stmt->execute([$_SESSION['user_id']]);
-            $approvedReservations = $stmt->fetchAll();
-        }
-        
-        if (empty($approvedReservations)) {
             return;
         }
         
@@ -966,8 +955,8 @@ function getPcSlotsStatus() {
 function syncPcStatusForLab($lab) {
     global $pdo;
     
-    // Reset all PCs in this lab to available
-    $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ?");
+    // Reset all PCs in this lab to available EXCEPT those under maintenance
+    $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'available' WHERE lab_number = ? AND status != 'maintenance'");
     $stmt->execute([$lab]);
     
     // Mark PCs as occupied that have current sit-ins

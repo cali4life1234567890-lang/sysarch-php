@@ -55,6 +55,12 @@ switch ($action) {
     case 'end_reservation_session':
         endReservationSession();
         break;
+    case 'start_reservation_sitin':
+        startReservationSitIn();
+        break;
+    case 'physical_sitin':
+        handlePhysicalSitInReq();
+        break;
     case 'report':
         generateReport();
         break;
@@ -96,6 +102,15 @@ switch ($action) {
         break;
     case 'delete_software':
         deleteSoftware();
+        break;
+    case 'get_pcs':
+        getPcs();
+        break;
+    case 'update_pc_status':
+        updatePcStatus();
+        break;
+    case 'get_pc_details':
+        getPcDetails();
         break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
@@ -186,13 +201,6 @@ function startSitIn() {
         if (!$user) {
             echo json_encode(['success' => false, 'message' => 'Student not found']);
             return;
-        }
-        
-        // Ensure pc_number column exists in sitin_records
-        try {
-            $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER");
-        } catch (PDOException $e) {
-            // Column might already exist, ignore
         }
         
         // Insert sit-in record
@@ -449,11 +457,11 @@ function approveReservation() {
      
      try {
          // Get reservation details
-         $stmt = $pdo->prepare("SELECT user_id, lab_number, pc_number, purpose, reservation_date, start_time FROM reservations WHERE id = ?");
+         $stmt = $pdo->prepare("SELECT user_id, lab_number, pc_number, purpose, reservation_date, start_time, end_time FROM reservations WHERE id = ?");
          $stmt->execute([$reservationId]);
          $reservation = $stmt->fetch();
          
-if (!$reservation) {
+         if (!$reservation) {
               echo json_encode(['success' => false, 'message' => 'Reservation not found']);
               return;
           }
@@ -472,6 +480,52 @@ if (!$reservation) {
          $checkStmt->execute([$reservation['user_id'], $reservationId]);
          if ($checkStmt->fetch()) {
              echo json_encode(['success' => false, 'message' => 'Reservation already approved and sit-in started']);
+             return;
+         }
+         
+         // Update reservation status to approved
+         $stmt = $pdo->prepare("UPDATE reservations SET status = 'approved' WHERE id = ?");
+         $stmt->execute([$reservationId]);
+         
+         // Create notification for user
+         createUserNotification($reservation['user_id'], 'Reservation Approved', 'Your reservation for Lab ' . $reservation['lab_number'] . ' on ' . $reservation['reservation_date'] . ' from ' . $reservation['start_time'] . ' has been approved.', 'success');
+         
+         echo json_encode(['success' => true, 'message' => 'Reservation approved.']);
+     } catch (PDOException $e) {
+         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+     }
+ }
+
+function startReservationSitIn() {
+     global $pdo;
+     $reservationId = $_GET['id'] ?? '';
+     
+     if (empty($reservationId)) {
+         echo json_encode(['success' => false, 'message' => 'Reservation ID is required']);
+         return;
+     }
+     
+     try {
+         // Get reservation details
+         $stmt = $pdo->prepare("SELECT user_id, lab_number, pc_number, purpose, reservation_date, start_time, end_time, status FROM reservations WHERE id = ?");
+         $stmt->execute([$reservationId]);
+         $reservation = $stmt->fetch();
+         
+         if (!$reservation) {
+              echo json_encode(['success' => false, 'message' => 'Reservation not found']);
+              return;
+          }
+
+          if ($reservation['status'] !== 'approved') {
+              echo json_encode(['success' => false, 'message' => 'Reservation must be approved first']);
+              return;
+          }
+
+          // Check if user already has an active sit-in
+         $checkStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
+         $checkStmt->execute([$reservation['user_id']]);
+         if ($checkStmt->fetch()) {
+             echo json_encode(['success' => false, 'message' => 'Student already has an active sit-in session']);
              return;
          }
          
@@ -496,6 +550,8 @@ if (!$reservation) {
              time_in DATETIME DEFAULT CURRENT_TIMESTAMP,
              time_out DATETIME,
              purpose TEXT,
+             start_time TEXT,
+             end_time TEXT,
              FOREIGN KEY (user_id) REFERENCES users(id)
          )");
          
@@ -513,9 +569,23 @@ if (!$reservation) {
              // Column might already exist, ignore
          }
          
+         // Add start_time column if it doesn't exist
+         try {
+             $pdo->exec("ALTER TABLE sitin_records ADD COLUMN start_time TEXT");
+         } catch (PDOException $e) {
+             // Column might already exist, ignore
+         }
+
+         // Add end_time column if it doesn't exist
+         try {
+             $pdo->exec("ALTER TABLE sitin_records ADD COLUMN end_time TEXT");
+         } catch (PDOException $e) {
+             // Column might already exist, ignore
+         }
+         
          // Create sit-in record
-         $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, reservation_id, time_in) VALUES (?, ?, ?, ?, ?, datetime('now'))");
-         $insertStmt->execute([$reservation['user_id'], $reservation['lab_number'], $reservation['pc_number'], $reservation['purpose'], $reservationId]);
+         $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, reservation_id, time_in, start_time, end_time) VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?)");
+         $insertStmt->execute([$reservation['user_id'], $reservation['lab_number'], $reservation['pc_number'], $reservation['purpose'], $reservationId, $reservation['start_time'], $reservation['end_time']]);
          
          // Update reservation status to active
          $stmt = $pdo->prepare("UPDATE reservations SET status = 'active' WHERE id = ?");
@@ -531,19 +601,116 @@ if (!$reservation) {
          }
          
          // Update PC status to occupied if PC number is provided
-         if ($reservation['pc_number']) {
-             $pcStmt = $pdo->prepare("UPDATE lab_pc_status SET status = 'occupied' WHERE lab_number = ? AND pc_number = ?");
-             $pcStmt->execute([$reservation['lab_number'], $reservation['pc_number']]);
-         }
+         // No global PC status update here; occupancy is handled per reservation timeslot via sitin_records
+
          
          // Create notification for user
-         createUserNotification($reservation['user_id'], 'Reservation Approved', 'Your reservation for Lab ' . $reservation['lab_number'] . ' on ' . $reservation['reservation_date'] . ' from ' . $reservation['start_time'] . ' has been approved. Sit-in has been started and 1 session has been deducted.', 'success');
+         createUserNotification($reservation['user_id'], 'Sit-In Started', 'Your sit-in session for Lab ' . $reservation['lab_number'] . ' has started. 1 session has been deducted.', 'success');
          
-         echo json_encode(['success' => true, 'message' => 'Reservation approved. Sit-in started and 1 session deducted.']);
+         echo json_encode(['success' => true, 'message' => 'Sit-in started and 1 session deducted.']);
      } catch (PDOException $e) {
          echo json_encode(['success' => false, 'message' => $e->getMessage()]);
      }
- }
+}
+
+function handlePhysicalSitInReq() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    $studentId = trim($input['student_id'] ?? '');
+
+    if (empty($studentId)) {
+        echo json_encode(['success' => false, 'message' => 'Student ID is required']);
+        return;
+    }
+
+    try {
+        // 1. Get user ID from student ID
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id_number = ?");
+        $stmt->execute([$studentId]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            echo json_encode(['success' => false, 'message' => 'Student not found']);
+            return;
+        }
+
+        $userId = $user['id'];
+
+        // 2. Check if student already has an active sit-in
+        $checkStmt = $pdo->prepare("SELECT id FROM sitin_records WHERE user_id = ? AND time_out IS NULL");
+        $checkStmt->execute([$userId]);
+        if ($checkStmt->fetch()) {
+            echo json_encode(['success' => false, 'message' => 'Student already has an active sit-in session']);
+            return;
+        }
+
+        // 3. Find an approved reservation for today
+        // Assuming reservation_date format allows direct string comparison with current date, or simply picking the first approved reservation
+        $resStmt = $pdo->prepare("SELECT id, lab_number, pc_number, purpose, reservation_date, start_time, end_time FROM reservations WHERE user_id = ? AND status = 'approved' ORDER BY reservation_date ASC LIMIT 1");
+        $resStmt->execute([$userId]);
+        $reservation = $resStmt->fetch();
+
+        if (!$reservation) {
+            echo json_encode(['success' => false, 'message' => 'No approved reservation found for this student']);
+            return;
+        }
+
+        $reservationId = $reservation['id'];
+
+        // 4. Start the sit-in (similar to startReservationSitIn)
+        // Check sessions
+        $sessionStmt = $pdo->prepare("SELECT remaining_sessions FROM user_sessions WHERE user_id = ?");
+        $sessionStmt->execute([$userId]);
+        $session = $sessionStmt->fetch();
+        $remainingSessions = $session ? $session['remaining_sessions'] : 30;
+
+        if ($remainingSessions <= 0) {
+            echo json_encode(['success' => false, 'message' => 'User has no remaining sessions']);
+            return;
+        }
+
+        // Create tables/columns if missing (same as before)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS sitin_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            lab_number TEXT NOT NULL,
+            pc_number INTEGER,
+            time_in DATETIME DEFAULT CURRENT_TIMESTAMP,
+            time_out DATETIME,
+            purpose TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )");
+        try { $pdo->exec("ALTER TABLE sitin_records ADD COLUMN pc_number INTEGER"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE sitin_records ADD COLUMN reservation_id INTEGER"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE sitin_records ADD COLUMN start_time TEXT"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE sitin_records ADD COLUMN end_time TEXT"); } catch (PDOException $e) {}
+
+        // Insert sitin
+        $insertStmt = $pdo->prepare("INSERT INTO sitin_records (user_id, lab_number, pc_number, purpose, reservation_id, time_in, start_time, end_time) VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?)");
+        $insertStmt->execute([$userId, $reservation['lab_number'], $reservation['pc_number'], $reservation['purpose'], $reservationId, $reservation['start_time'], $reservation['end_time']]);
+
+        // Update reservation to active
+        $updateStmt = $pdo->prepare("UPDATE reservations SET status = 'active' WHERE id = ?");
+        $updateStmt->execute([$reservationId]);
+
+        // Deduct session
+        if ($session) {
+            $deductStmt = $pdo->prepare("UPDATE user_sessions SET remaining_sessions = remaining_sessions - 1 WHERE user_id = ?");
+            $deductStmt->execute([$userId]);
+        } else {
+            $insertSessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, remaining_sessions) VALUES (?, 29)");
+            $insertSessionStmt->execute([$userId]);
+        }
+
+        createUserNotification($userId, 'Sit-In Started', 'Your sit-in session for Lab ' . $reservation['lab_number'] . ' has started via ID Scan. 1 session has been deducted.', 'success');
+
+        echo json_encode(['success' => true, 'message' => 'Physical sit-in successful for reservation #' . $reservationId]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
 
 function denyReservation() {
     global $pdo;
@@ -1327,6 +1494,130 @@ function deleteSoftware() {
         $stmt = $pdo->prepare("DELETE FROM lab_software WHERE id = ?");
         $stmt->execute([$id]);
         echo json_encode(['success' => true, 'message' => 'Software deleted successfully.']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getPcs() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    try {
+        if ($lab && $lab !== 'all') {
+            $stmt = $pdo->prepare("SELECT id, lab_number, pc_number, status FROM lab_pc_status WHERE lab_number = ? ORDER BY pc_number ASC");
+            $stmt->execute([$lab]);
+        } else {
+            $stmt = $pdo->query("SELECT id, lab_number, pc_number, status FROM lab_pc_status ORDER BY lab_number ASC, pc_number ASC");
+        }
+        $pcs = $stmt->fetchAll();
+        echo json_encode(['success' => true, 'pcs' => $pcs]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function updatePcStatus() {
+    global $pdo;
+    $input = json_decode(file_get_contents('php://input'), true);
+    $pcId = $input['id'] ?? '';
+    $status = $input['status'] ?? '';
+    
+    if (empty($pcId) || empty($status)) {
+        echo json_encode(['success' => false, 'message' => 'PC ID and status are required']);
+        return;
+    }
+    
+    try {
+        if ($status === 'maintenance') {
+            // Get lab and pc number
+            $stmt = $pdo->prepare("SELECT lab_number, pc_number FROM lab_pc_status WHERE id = ?");
+            $stmt->execute([$pcId]);
+            $pcInfo = $stmt->fetch();
+            
+            if ($pcInfo) {
+                // Find active sit-in
+                $sitinStmt = $pdo->prepare("SELECT id, user_id FROM sitin_records WHERE lab_number = ? AND pc_number = ? AND time_out IS NULL");
+                $sitinStmt->execute([$pcInfo['lab_number'], $pcInfo['pc_number']]);
+                $activeSitin = $sitinStmt->fetch();
+                
+                if ($activeSitin) {
+                    // End the sit-in
+                    $endStmt = $pdo->prepare("UPDATE sitin_records SET time_out = datetime('now') WHERE id = ?");
+                    $endStmt->execute([$activeSitin['id']]);
+                    
+                    // Add notification
+                    $msg = "Your sit-in on Lab {$pcInfo['lab_number']} PC {$pcInfo['pc_number']} was forced to end. Reason: admin ended, disabled pc";
+                    $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, is_read, created_at) VALUES (?, 'Sit-in Forced to End', ?, 'system', 0, datetime('now'))");
+                    $notifStmt->execute([$activeSitin['user_id'], $msg]);
+                }
+            }
+        }
+
+        $stmt = $pdo->prepare("UPDATE lab_pc_status SET status = ? WHERE id = ?");
+        $stmt->execute([$status, $pcId]);
+        echo json_encode(['success' => true, 'message' => 'PC status updated successfully']);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+function getPcDetails() {
+    global $pdo;
+    $lab = $_GET['lab'] ?? '';
+    $pc = $_GET['pc'] ?? '';
+    
+    if (empty($lab) || empty($pc)) {
+        echo json_encode(['success' => false, 'message' => 'Lab and PC number are required']);
+        return;
+    }
+    
+    try {
+        $details = [];
+        
+        // 1. Get current active sit-in if occupied
+        $stmt = $pdo->prepare("
+            SELECT u.id_number, u.firstname, u.lastname, s.time_in, s.purpose 
+            FROM sitin_records s 
+            JOIN users u ON s.user_id = u.id 
+            WHERE s.lab_number = ? AND s.pc_number = ? AND s.time_out IS NULL 
+            LIMIT 1
+        ");
+        $stmt->execute([$lab, $pc]);
+        $activeSession = $stmt->fetch();
+        if ($activeSession) {
+            $details['active_session'] = [
+                'id_number' => $activeSession['id_number'],
+                'name' => $activeSession['firstname'] . ' ' . $activeSession['lastname'],
+                'time_in' => $activeSession['time_in'],
+                'purpose' => $activeSession['purpose']
+            ];
+        } else {
+            $details['active_session'] = null;
+        }
+        
+        // 2. Get today's upcoming/active reservations
+        $stmt = $pdo->prepare("
+            SELECT u.id_number, u.firstname, u.lastname, r.start_time, r.end_time, r.status 
+            FROM reservations r 
+            JOIN users u ON r.user_id = u.id 
+            WHERE r.lab_number = ? AND r.pc_number = ? AND DATE(r.reservation_date) = DATE('now')
+            ORDER BY r.start_time ASC
+        ");
+        $stmt->execute([$lab, $pc]);
+        $reservations = $stmt->fetchAll();
+        
+        $details['reservations'] = [];
+        foreach ($reservations as $res) {
+            $details['reservations'][] = [
+                'id_number' => $res['id_number'],
+                'name' => $res['firstname'] . ' ' . $res['lastname'],
+                'start_time' => $res['start_time'],
+                'end_time' => $res['end_time'],
+                'status' => $res['status']
+            ];
+        }
+        
+        echo json_encode(['success' => true, 'details' => $details]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

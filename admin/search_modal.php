@@ -235,28 +235,29 @@ $autoOpenModal = isset($_GET['open_search']) && $_GET['open_search'] === 'modal'
 
 .pc-option {
     padding: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid #a7f3d0;
     border-radius: 6px;
     cursor: pointer;
     text-align: center;
-    background: white;
+    background: #d1fae5;
+    color: #065f46;
     font-weight: bold;
     font-size: 14px;
     transition: all 0.2s ease;
 }
 
 .pc-option:hover {
-    background: #144d94;
+    background: #10b981;
     color: white;
-    border-color: #144d94;
+    border-color: #10b981;
     transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(20, 77, 148, 0.15);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.15);
 }
 
 .pc-option.occupied {
-    background: #e9ecef !important;
-    color: #adb5bd !important;
-    border-color: #dee2e6 !important;
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border-color: #fca5a5 !important;
     cursor: not-allowed !important;
     pointer-events: none !important;
     transform: none !important;
@@ -402,6 +403,10 @@ function showSitinModal(idno, name, sessions) {
                 <input type="text" id="sitinStudentName" value="${name}" readonly style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; background: #f0f0f0; box-sizing: border-box;">
             </div>
             <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Time Slot (e.g., 09:00-10:30)</label>
+                <input type="text" id="sitinTimeSlot" placeholder="HH:MM-HH:MM" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">Purpose *</label>
                 <select id="sitinPurpose" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; box-sizing: border-box;" onchange="handleAdminSitinPurposeChange()">
                   <option value="" disabled selected>Select Purpose/Language</option>
@@ -481,7 +486,7 @@ async function openPCModal() {
     <div id="pcSelectModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; justify-content: center; align-items: center;">
         <div style="background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
             <span onclick="closePCModal()" style="position: absolute; top: 10px; right: 20px; font-size: 28px; cursor: pointer; color: #666;">&times;</span>
-            <h2 style="margin-top: 0; font-family: 'Outfit', sans-serif;">Select PC - Lab ${lab}</h2>
+            <h2 style="margin-top: 0; font-family: 'Outfit', sans-serif; color: black;">Select PC - Lab ${lab}</h2>
             <div id="pcGridLoader" style="text-align: center; padding: 40px 10px; color: #144d94;">
                 <div style="width: 32px; height: 32px; border: 3px solid rgba(20, 77, 148, 0.1); border-top: 3px solid #144d94; border-radius: 50%; margin: 0 auto 12px; animation: searchSpin 1s linear infinite;"></div>
                 <p style="margin: 0; font-weight: 600;">Loading PC status...</p>
@@ -498,7 +503,12 @@ async function openPCModal() {
     document.body.insertAdjacentHTML('beforeend', pcModalHtml);
     
     try {
-        var response = await fetch('api_get_occupied_pcs.php?lab=' + encodeURIComponent(lab));
+        var timeSlot = document.getElementById('sitinTimeSlot').value.trim();
+        var url = 'api_get_occupied_pcs.php?lab=' + encodeURIComponent(lab);
+        if (timeSlot) {
+            url += '&time_slot=' + encodeURIComponent(timeSlot);
+        }
+        var response = await fetch(url);
         var data = await response.json();
         
         var occupied = [];
@@ -591,6 +601,11 @@ async function submitSitin() {
         formData.append('lab', lab);
         if (pc) {
             formData.append('pc_number', pc);
+        }
+        // Include time slot if provided
+        var timeSlot = document.getElementById('sitinTimeSlot').value.trim();
+        if (timeSlot) {
+            formData.append('time_slot', timeSlot);
         }
 
         var response = await fetch('api_start_sitin.php', {

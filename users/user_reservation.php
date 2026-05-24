@@ -1207,9 +1207,20 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
         fetch('user_dashboard.php?action=get_active_sitin')
           .then(res => res.json())
           .then(data => {
-            if (data.success && data.sitin) {
-              currentSitInDetails = data.sitin;
-              initSitInTimer(currentSitInDetails);
+            if (data.success) {
+              if (data.sitin) {
+                currentSitInDetails = data.sitin;
+                initSitInTimer(currentSitInDetails);
+              } else if (hasActiveSitIn) {
+                // Sit-in has ended
+                hasActiveSitIn = false;
+                currentSitInDetails = null;
+                if (timerInterval) clearInterval(timerInterval);
+                const timerFab = document.getElementById('timer-fab');
+                if (timerFab) timerFab.classList.remove('active', 'expiring');
+                applyRestrictions();
+                loadRemainingSessions();
+              }
             }
           })
           .catch(err => console.error('Error fetching sit-in details:', err));
@@ -1383,6 +1394,33 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
           }
         }, 10000);
       }
+
+      function showForcedEndBanner(message) {
+        // Remove existing banner if any
+        const existingBanner = document.querySelector('.reservation-started-banner');
+        if (existingBanner) {
+          existingBanner.remove();
+        }
+        
+        // Create banner
+        const banner = document.createElement('div');
+        banner.className = 'reservation-started-banner';
+        banner.style.borderLeftColor = '#ef4444';
+        banner.innerHTML = `
+          <button class="close-banner" onclick="this.parentElement.remove()">&times;</button>
+          <h3 style="color: #ef4444;">⚠️ Sit-In Forced to End</h3>
+          <p>${message}</p>
+        `;
+        
+        document.body.appendChild(banner);
+        
+        // Auto-remove after 15 seconds
+        setTimeout(() => {
+          if (banner.parentElement) {
+            banner.remove();
+          }
+        }, 15000);
+      }
       
       function loadNavNotifications() {
         fetch('user_dashboard.php?action=notifications')
@@ -1413,6 +1451,24 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
                   
                   // Refresh active sit-in details
                   fetchActiveSitInDetails();
+                }
+
+                // Check for forced end notification
+                const forcedEnd = data.notifications.find(n => 
+                  n.title && n.title.includes('Forced to End') && !n.is_read
+                );
+
+                if (forcedEnd) {
+                  showForcedEndBanner(forcedEnd.message);
+                  
+                  // End active sit in if applicable
+                  hasActiveSitIn = false;
+                  currentSitInDetails = null;
+                  if (timerInterval) clearInterval(timerInterval);
+                  const timerFab = document.getElementById('timer-fab');
+                  if (timerFab) timerFab.classList.remove('active', 'expiring');
+                  applyRestrictions();
+                  loadRemainingSessions();
                 }
               }
               
@@ -1636,7 +1692,14 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
           pcDiv.textContent = pc.pc_number;
           pcDiv.dataset.pcNumber = pc.pc_number;
           
-          if (pc.status === 'available') {
+          if (pc.status === 'maintenance') {
+            pcDiv.style.opacity = '0.4';
+            pcDiv.style.cursor = 'not-allowed';
+            pcDiv.style.backgroundColor = '#e2e8f0';
+            pcDiv.style.borderColor = '#cbd5e1';
+            pcDiv.style.color = '#64748b';
+            pcDiv.title = 'PC Disabled / Maintenance';
+          } else if (pc.status === 'available') {
             pcDiv.onclick = () => selectSitInEmbeddedPc(pc.pc_number, pcDiv);
           }
           
@@ -1777,7 +1840,16 @@ let remainingSessions = <?php echo $remainingSessions; ?>;
           pcDiv.textContent = pc.pc_number;
           pcDiv.dataset.pcNumber = pc.pc_number;
           
-          pcDiv.onclick = () => selectReserveEmbeddedPc(pc.pc_number, pcDiv);
+          if (pc.status === 'maintenance') {
+            pcDiv.style.opacity = '0.4';
+            pcDiv.style.cursor = 'not-allowed';
+            pcDiv.style.backgroundColor = '#e2e8f0';
+            pcDiv.style.borderColor = '#cbd5e1';
+            pcDiv.style.color = '#64748b';
+            pcDiv.title = 'PC Disabled / Maintenance';
+          } else {
+            pcDiv.onclick = () => selectReserveEmbeddedPc(pc.pc_number, pcDiv);
+          }
           
           grid.appendChild(pcDiv);
         });
